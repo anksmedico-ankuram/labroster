@@ -763,11 +763,11 @@ function setSyncStatus(s) {
   const el = document.getElementById('syncIndicator');
   if (!el) return;
   const map = {
-    offline:  { text: '⚪ Not connected',   color: 'var(--txt3)' },
-    syncing:  { text: '🔄 Syncing…',         color: 'var(--orange)' },
-    ok:       { text: '🟢 Synced',            color: 'var(--green)' },
-    error:    { text: '🔴 Sync error',        color: 'var(--red)' },
-    local:    { text: '🟡 Local only',        color: 'var(--yellow)' },
+    offline:  { text: '⚪ Not connected',    color: 'var(--txt3)' },
+    syncing:  { text: '🔄 Syncing…',          color: 'var(--orange)' },
+    ok:       { text: '🟢 Synced',             color: 'var(--green)' },
+    error:    { text: '🔴 Sync error',         color: 'var(--red)' },
+    local:    { text: '🟡 Saved locally',      color: 'var(--acc)' },
   };
   const m = map[s] || map.offline;
   el.textContent = m.text;
@@ -1202,6 +1202,7 @@ function decideLeave(id,decision){
     toast('Leave rejected','err');
   }
   afterUpdateLeave(lr);
+  autoSave();
   renderLeaves(); updateStats();
 }
 
@@ -1277,6 +1278,7 @@ function addLock(){
   const newLk={id:'LK'+Date.now(),from,to,reason,addedOn:today()};
   DB.lockedRanges.push(newLk);
   afterAddLock(newLk);
+  autoSave();
   toast('Dates locked — staff cannot request leave','warn');
   renderLockDays(); updateStats();
   document.getElementById('lockFrom').value='';
@@ -1286,6 +1288,7 @@ function addLock(){
 
 function removeLock(id){
   afterDeleteLock(id);
+  autoSave();
   DB.lockedRanges=DB.lockedRanges.filter(r=>r.id!==id);
   toast('Lock removed'); renderLockDays(); updateStats();
 }
@@ -1338,6 +1341,7 @@ function addEmployee(){
   });
   populateDropdowns(); closeModal('addEmpMod'); updateStats();
   afterAddEmployee(DB.employees[DB.employees.length-1]);
+  autoSave();
   toast(`${name} added`,'ok');
 }
 
@@ -1353,6 +1357,7 @@ function assignShift(){
   if(existing){existing.shift=shift;existing.site=site;existing.notes=notes;}
   else DB.roster.push({id:`R${Date.now()}`,empId,date,shift,site,notes,status:'scheduled'});
   const re=existing||DB.roster[DB.roster.length-1]; if(existing){afterUpdateRoster(re);}else{afterAddRoster(re);}
+  autoSave();
   closeModal('assignMod'); renderDash(); toast('Shift assigned','ok');
 }
 
@@ -1369,6 +1374,7 @@ function prefillAssign(rid){
 function deleteEntry(rid){
   if(!confirm('Remove this shift entry?'))return;
   afterDeleteRoster(rid);
+  autoSave();
   DB.roster=DB.roster.filter(r=>r.id!==rid);
   renderDash(); toast('Entry removed','warn');
 }
@@ -1479,6 +1485,7 @@ function settingsAddEmployee(){
   ['s-en','s-eid','s-erole','s-ephone','s-epin'].forEach(i=>document.getElementById(i).value='');
   const newEmp=DB.employees[DB.employees.length-1];
   afterAddEmployee(newEmp);
+  autoSave();
   populateDropdowns(); renderSettingsStaff(); updateStats();
   toast(`${name} added`,'ok');
 }
@@ -1510,6 +1517,7 @@ function saveEditStaff(){
   e.preferredShift=document.getElementById('es-pshift').value;
   e.joinDate=document.getElementById('es-join').value;
   afterUpdateEmployee(e);
+  autoSave();
   closeModal('editStaffMod'); renderSettingsStaff(); renderStaff(); populateDropdowns();
   toast('Staff updated','ok');
 }
@@ -1520,6 +1528,7 @@ function deleteStaffFromModal(){
   DB.employees=DB.employees.filter(e=>e.id!==id);
   DB.roster=DB.roster.filter(r=>r.empId!==id);
   afterDeleteEmployee(id);
+  autoSave();
   closeModal('editStaffMod'); renderSettingsStaff(); renderStaff(); updateStats();
   toast('Staff removed','warn');
 }
@@ -1527,6 +1536,7 @@ function deleteStaffFromModal(){
 function removeStaffSettings(id){
   if(!confirm('Permanently remove this staff member?'))return;
   afterDeleteEmployee(id);
+  autoSave();
   DB.employees=DB.employees.filter(e=>e.id!==id);
   DB.roster=DB.roster.filter(r=>r.empId!==id);
   renderSettingsStaff(); renderStaff(); updateStats();
@@ -1637,6 +1647,7 @@ function addStaffLeaveBlock(){
   const newBlk={id:'SB'+Date.now(),empId,from,to};
   DB.staffLeaveBlocks.push(newBlk);
   afterAddStaffBlock(newBlk);
+  autoSave();
   toast(`Leave blocked for ${getEmp(empId)?.name}`,'warn');
   document.getElementById('lb-from').value='';
   document.getElementById('lb-to').value='';
@@ -1645,6 +1656,7 @@ function addStaffLeaveBlock(){
 
 function removeStaffBlock(id){
   afterDeleteStaffBlock(id);
+  autoSave();
   DB.staffLeaveBlocks=DB.staffLeaveBlocks.filter(b=>b.id!==id);
   renderLeaveBlocks();
   toast('Block removed');
@@ -1719,13 +1731,62 @@ function clearAllRoster(){if(!confirm('Delete ALL roster entries? This cannot be
 function clearAllLeaves(){if(!confirm('Delete ALL leave requests?'))return;DB.leaveRequests=[];updateStats();toast('All leave requests cleared','err');}
 function clearAllLocks(){if(!confirm('Remove ALL date locks?'))return;DB.lockedRanges=[];updateStats();toast('All locks removed','warn');}
 
+// ═══ LOCAL STORAGE PERSISTENCE ═══
+const LS_KEY = 'ankuram_labroster_v1';
+
+function saveLocal() {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify({
+      employees:    DB.employees,
+      roster:       DB.roster,
+      leaveRequests:DB.leaveRequests,
+      lockedRanges: DB.lockedRanges,
+      staffBlocks:  DB.staffLeaveBlocks || [],
+      savedAt:      new Date().toISOString()
+    }));
+  } catch(e) { console.warn('saveLocal failed:', e); }
+}
+
+function loadLocal() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return false;
+    const d = JSON.parse(raw);
+    if (d.employees?.length)     DB.employees          = d.employees;
+    if (d.roster?.length)        DB.roster             = d.roster;
+    if (d.leaveRequests?.length) DB.leaveRequests      = d.leaveRequests;
+    if (d.lockedRanges?.length)  DB.lockedRanges       = d.lockedRanges;
+    if (d.staffBlocks?.length)   DB.staffLeaveBlocks   = d.staffBlocks;
+    console.log('Loaded from localStorage, saved:', d.savedAt);
+    return true;
+  } catch(e) { console.warn('loadLocal failed:', e); return false; }
+}
+
+// Auto-save after every data mutation
+function autoSave() {
+  saveLocal();
+  // also push to Sheets if connected
+  setSyncStatus(GAS_URL ? 'ok' : 'local');
+}
+
 // ═══ INIT ═══
 async function init() {
-  // Try to load from Google Sheets; fall back to seed data
-  const loaded = await loadFromSheets();
-  if (!loaded) {
-    seed(); // use demo data if no API configured
-    setSyncStatus(GAS_URL ? 'error' : 'offline');
+  // 1. Try Google Sheets first
+  const sheetsLoaded = await loadFromSheets();
+  if (sheetsLoaded) {
+    saveLocal(); // cache to localStorage as backup
+    return;
+  }
+  // 2. Fall back to localStorage (your saved data)
+  const localLoaded = loadLocal();
+  if (localLoaded) {
+    setSyncStatus(GAS_URL ? 'error' : 'local');
+    toast('Loaded from local storage', '');
+  } else {
+    // 3. First ever load — use seed demo data
+    seed();
+    saveLocal(); // save seed so next load uses localStorage
+    setSyncStatus('offline');
   }
   populateDropdowns(); updateStats(); renderDash();
 }
