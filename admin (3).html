@@ -1,0 +1,1772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ankuram Labs — LabRoster Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=Syne:wght@400;600;700;800&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:     #07090f;
+  --bg2:    #0e1118;
+  --bg3:    #141824;
+  --panel:  #181e2e;
+  --panel2: #1d2438;
+  --bdr:    #252d44;
+  --bdr2:   #2e3850;
+  --acc:    #e8c547;
+  --acc2:   #f0d87a;
+  --acc-dim:#3a310a;
+  --blue:   #4f8ef7;
+  --green:  #22c97e;
+  --red:    #f04a58;
+  --orange: #f5853a;
+  --purple: #9b7af5;
+  --txt:    #dde3f5;
+  --txt2:   #7d8aaa;
+  --txt3:   #3d4662;
+  --r:      8px;
+  --r2:     12px;
+  --sh:     0 8px 40px rgba(0,0,0,.5);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--txt);font-family:'Instrument Sans',sans-serif;font-size:14px;min-height:100vh;}
+
+/* HEADER */
+header{
+  background:var(--bg2);border-bottom:1px solid var(--bdr);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 24px;height:58px;position:sticky;top:0;z-index:100;
+}
+.logo{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;letter-spacing:-.3px;}
+.logo em{color:var(--acc);font-style:normal;}
+.logo-badge{
+  font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;
+  background:var(--acc-dim);color:var(--acc);border:1px solid var(--acc);
+  border-radius:4px;padding:2px 7px;margin-left:10px;text-transform:uppercase;
+}
+.hdr-right{display:flex;gap:10px;align-items:center;}
+.hdr-clock{font-family:'DM Mono',monospace;font-size:12px;color:var(--txt2);background:var(--bg3);border:1px solid var(--bdr);border-radius:var(--r);padding:5px 12px;}
+
+/* BUTTONS */
+.btn{padding:7px 16px;border-radius:var(--r);border:none;cursor:pointer;font-family:'Instrument Sans',sans-serif;font-size:13px;font-weight:500;transition:.15s all;}
+.btn-acc{background:var(--acc);color:#0e0b00;}
+.btn-acc:hover{background:var(--acc2);}
+.btn-ghost{background:transparent;border:1px solid var(--bdr);color:var(--txt2);}
+.btn-ghost:hover{border-color:var(--acc);color:var(--acc);}
+.btn-red{background:rgba(240,74,88,.15);color:var(--red);border:1px solid rgba(240,74,88,.3);}
+.btn-red:hover{background:rgba(240,74,88,.25);}
+.btn-green{background:rgba(34,201,126,.12);color:var(--green);border:1px solid rgba(34,201,126,.3);}
+.btn-green:hover{background:rgba(34,201,126,.22);}
+.btn-sm{padding:4px 10px;font-size:12px;}
+.btn-icon{background:transparent;border:1px solid var(--bdr);color:var(--txt2);padding:5px 9px;border-radius:var(--r);cursor:pointer;transition:.15s;}
+.btn-icon:hover{border-color:var(--acc);color:var(--acc);}
+
+/* LAYOUT */
+.app{display:flex;height:calc(100vh - 58px);}
+.sidebar{width:210px;background:var(--bg2);border-right:1px solid var(--bdr);padding:14px 0;flex-shrink:0;overflow-y:auto;}
+.main{flex:1;overflow-y:auto;padding:22px;}
+
+/* SIDEBAR */
+.sl{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2.5px;color:var(--txt3);text-transform:uppercase;padding:3px 16px 8px;}
+.ni{display:flex;align-items:center;gap:9px;padding:8px 16px;cursor:pointer;color:var(--txt2);font-size:13px;border-left:2px solid transparent;transition:.15s;}
+.ni:hover{background:var(--bg3);color:var(--txt);}
+.ni.active{background:var(--bg3);color:var(--acc);border-left-color:var(--acc);}
+.ni .ico{font-size:14px;width:18px;text-align:center;}
+.nb{margin-left:auto;background:var(--red);color:#fff;font-size:9px;padding:1px 6px;border-radius:8px;font-family:'DM Mono',monospace;}
+.nb.orange{background:var(--orange);}
+
+/* VIEW SYSTEM */
+.view{display:none;animation:fadeIn .2s ease;}
+.view.active{display:block;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* PAGE HEADER */
+.ph{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;}
+.pt{font-family:'Syne',sans-serif;font-size:20px;font-weight:700;}
+.ps{color:var(--txt2);font-size:12px;margin-top:3px;}
+.pa{display:flex;gap:8px;}
+
+/* STAT CARDS */
+.sg{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;}
+.sc{background:var(--panel);border:1px solid var(--bdr);border-radius:var(--r2);padding:16px;transition:.15s;}
+.sc:hover{border-color:var(--bdr2);}
+.sl2{font-family:'DM Mono',monospace;font-size:10px;color:var(--txt2);text-transform:uppercase;letter-spacing:1px;margin-bottom:7px;}
+.sv{font-family:'Syne',sans-serif;font-size:28px;font-weight:700;}
+.ss{font-size:11px;color:var(--txt3);margin-top:3px;}
+.c-acc{color:var(--acc);}
+.c-grn{color:var(--green);}
+.c-red{color:var(--red);}
+.c-org{color:var(--orange);}
+
+/* TABLE WRAPPER */
+.tw{background:var(--panel);border:1px solid var(--bdr);border-radius:var(--r2);overflow:hidden;}
+.tb-bar{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--bdr);background:var(--bg2);flex-wrap:wrap;}
+.tb-bar select,.tb-bar input{background:var(--bg3);border:1px solid var(--bdr);color:var(--txt);border-radius:var(--r);padding:6px 10px;font-size:12px;font-family:'Instrument Sans',sans-serif;outline:none;}
+.tb-bar select:focus,.tb-bar input:focus{border-color:var(--acc);}
+.ml{margin-left:auto;}
+.tbl{width:100%;border-collapse:collapse;font-size:13px;}
+.tbl th{background:var(--bg3);color:var(--txt2);font-family:'DM Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:1.2px;padding:9px 12px;text-align:left;border-bottom:1px solid var(--bdr);}
+.tbl td{padding:10px 12px;border-bottom:1px solid var(--bdr);}
+.tbl tr:last-child td{border-bottom:none;}
+.tbl tr:hover td{background:var(--bg3);}
+
+/* TAGS */
+.stag{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:4px;font-family:'DM Mono',monospace;font-size:10px;font-weight:500;}
+.stag.A{background:rgba(79,142,247,.15);color:#4f8ef7;}
+.stag.B{background:rgba(34,201,126,.12);color:var(--green);}
+.stag.C{background:rgba(155,122,245,.15);color:var(--purple);}
+.stag.OFF{background:var(--bg3);color:var(--txt3);}
+.dtag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;background:rgba(79,142,247,.1);color:var(--blue);border:1px solid rgba(79,142,247,.2);}
+.pending-tag{background:rgba(245,133,58,.12);color:var(--orange);border:1px solid rgba(245,133,58,.3);padding:2px 8px;border-radius:4px;font-size:11px;}
+.approved-tag{background:rgba(34,201,126,.1);color:var(--green);border:1px solid rgba(34,201,126,.25);padding:2px 8px;border-radius:4px;font-size:11px;}
+.rejected-tag{background:rgba(240,74,88,.1);color:var(--red);border:1px solid rgba(240,74,88,.25);padding:2px 8px;border-radius:4px;font-size:11px;}
+.locked-tag{background:rgba(240,74,88,.1);color:var(--red);border:1px solid rgba(240,74,88,.3);padding:2px 7px;border-radius:4px;font-size:11px;font-family:'DM Mono',monospace;}
+.emp-nm{font-weight:500;color:var(--txt);}
+.emp-id{font-family:'DM Mono',monospace;font-size:10px;color:var(--txt3);}
+.emp-rl{font-size:11px;color:var(--txt2);}
+
+/* CALENDAR */
+.cal-wrap{background:var(--panel);border:1px solid var(--bdr);border-radius:var(--r2);overflow:hidden;}
+.cal-hdr{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--bdr);background:var(--bg2);}
+.cal-hdr .month-label{font-family:'Syne',sans-serif;font-weight:700;font-size:16px;flex:1;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);}
+.cal-dh{background:var(--bg3);padding:8px;text-align:center;font-family:'DM Mono',monospace;font-size:10px;color:var(--txt2);letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid var(--bdr);border-right:1px solid var(--bdr);}
+.cal-day{min-height:80px;border-right:1px solid var(--bdr);border-bottom:1px solid var(--bdr);padding:6px;cursor:pointer;transition:.15s;position:relative;}
+.cal-day:hover{background:var(--bg3);}
+.cal-day.today{background:rgba(232,197,71,.05);}
+.cal-day.locked{background:rgba(240,74,88,.05);}
+.cal-day.other-month{opacity:.3;}
+.cal-dn{font-family:'DM Mono',monospace;font-size:12px;font-weight:500;margin-bottom:4px;}
+.cal-day.today .cal-dn{color:var(--acc);}
+.cal-lock-icon{position:absolute;top:5px;right:6px;font-size:11px;color:var(--red);opacity:.7;}
+.cal-chips{display:flex;flex-direction:column;gap:2px;}
+.cal-chip{font-size:10px;padding:1px 5px;border-radius:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;}
+.cal-chip.A{background:rgba(79,142,247,.2);color:#4f8ef7;}
+.cal-chip.B{background:rgba(34,201,126,.15);color:var(--green);}
+.cal-chip.C{background:rgba(155,122,245,.15);color:var(--purple);}
+.cal-chip.leave{background:rgba(245,133,58,.15);color:var(--orange);}
+.cal-chip.locked-day{background:rgba(240,74,88,.12);color:var(--red);}
+.lock-btn{position:absolute;bottom:4px;right:4px;background:var(--bg3);border:1px solid var(--bdr);border-radius:3px;font-size:9px;padding:1px 5px;cursor:pointer;color:var(--txt2);font-family:'DM Mono',monospace;display:none;}
+.cal-day:hover .lock-btn{display:block;}
+.lock-btn:hover{border-color:var(--red);color:var(--red);}
+
+/* LEAVE REQUESTS */
+.leave-card{background:var(--panel);border:1px solid var(--bdr);border-radius:var(--r2);padding:16px;margin-bottom:10px;transition:.15s;}
+.leave-card:hover{border-color:var(--bdr2);}
+.leave-card-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;}
+.leave-card-acts{display:flex;gap:7px;}
+.leave-info-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+.li-item{background:var(--bg3);border-radius:var(--r);padding:8px 10px;}
+.li-lbl{font-size:10px;color:var(--txt3);font-family:'DM Mono',monospace;margin-bottom:3px;text-transform:uppercase;letter-spacing:.8px;}
+.li-val{font-size:12px;color:var(--txt);font-weight:500;}
+.replacement-badge{background:rgba(34,201,126,.1);border:1px solid rgba(34,201,126,.25);border-radius:var(--r);padding:8px 12px;margin-top:10px;font-size:12px;color:var(--green);}
+
+/* MODAL */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:200;align-items:center;justify-content:center;}
+.overlay.open{display:flex;}
+.modal{background:var(--panel);border:1px solid var(--bdr);border-radius:var(--r2);width:520px;max-height:90vh;overflow-y:auto;box-shadow:var(--sh);animation:slideUp .2s ease;}
+@keyframes slideUp{from{transform:translateY(16px);opacity:0}to{transform:translateY(0);opacity:1}}
+.mh{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--bdr);}
+.mt{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;}
+.mb{padding:20px;}
+.mf{padding:14px 20px;border-top:1px solid var(--bdr);display:flex;gap:8px;justify-content:flex-end;}
+.fg{display:flex;flex-direction:column;gap:5px;margin-bottom:13px;}
+.fl{font-size:10px;color:var(--txt2);text-transform:uppercase;letter-spacing:1px;font-family:'DM Mono',monospace;}
+.fc{background:var(--bg3);border:1px solid var(--bdr);color:var(--txt);border-radius:var(--r);padding:8px 12px;font-size:13px;font-family:'Instrument Sans',sans-serif;outline:none;width:100%;transition:.15s;}
+.fc:focus{border-color:var(--acc);}
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.xb{background:none;border:none;color:var(--txt2);cursor:pointer;font-size:17px;padding:2px;}
+.xb:hover{color:var(--txt);}
+
+/* LOCK DATE PANEL */
+.lock-panel{background:var(--panel);border:1px solid var(--bdr);border-radius:var(--r2);padding:16px;margin-bottom:14px;}
+.lock-panel-title{font-family:'Syne',sans-serif;font-size:14px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+.locked-dates-list{display:flex;flex-wrap:wrap;gap:8px;}
+.locked-date-pill{background:rgba(240,74,88,.1);border:1px solid rgba(240,74,88,.3);border-radius:6px;padding:4px 10px;font-family:'DM Mono',monospace;font-size:12px;color:var(--red);display:flex;align-items:center;gap:6px;}
+.locked-date-pill button{background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;line-height:1;opacity:.6;}
+.locked-date-pill button:hover{opacity:1;}
+
+/* TOAST */
+.tc{position:fixed;bottom:20px;right:20px;z-index:400;display:flex;flex-direction:column;gap:7px;}
+.toast{background:var(--panel);border:1px solid var(--acc);border-radius:var(--r);padding:11px 16px;font-size:13px;box-shadow:var(--sh);animation:fadeIn .2s ease;max-width:300px;}
+.toast.ok{border-color:var(--green);}
+.toast.err{border-color:var(--red);}
+.toast.warn{border-color:var(--orange);}
+
+/* INFO BADGE */
+.info-box{background:rgba(79,142,247,.06);border:1px solid rgba(79,142,247,.2);border-radius:var(--r);padding:10px 14px;font-size:12px;color:var(--blue);margin-bottom:14px;line-height:1.6;}
+.warn-box{background:rgba(245,133,58,.06);border:1px solid rgba(245,133,58,.2);border-radius:var(--r);padding:10px 14px;font-size:12px;color:var(--orange);margin-bottom:14px;line-height:1.6;}
+
+/* DIVIDER */
+hr.d{border:none;border-top:1px solid var(--bdr);margin:18px 0;}
+.sec-title{font-family:'Syne',sans-serif;font-size:14px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+.sec-title::after{content:'';flex:1;height:1px;background:var(--bdr);}
+
+/* SHIFT LEGEND */
+.sleg{display:flex;gap:10px;margin-bottom:16px;}
+.sl-item{display:flex;align-items:center;gap:7px;background:var(--panel);border:1px solid var(--bdr);border-radius:var(--r);padding:7px 12px;font-size:12px;}
+.sl-dot{width:7px;height:7px;border-radius:50%;}
+.slt{font-family:'DM Mono',monospace;font-size:11px;color:var(--txt2);}
+
+/* EMPTY */
+.empty{text-align:center;padding:50px 20px;color:var(--txt2);}
+.empty .ei{font-size:36px;margin-bottom:10px;}
+
+/* SETTINGS PAGE */
+.settings-tabs{display:flex;gap:0;border-bottom:1px solid var(--bdr);margin-bottom:20px;}
+.stab{padding:9px 18px;cursor:pointer;font-size:13px;color:var(--txt2);border-bottom:2px solid transparent;transition:.15s;white-space:nowrap;}
+.stab.active{color:var(--acc);border-bottom-color:var(--acc);}
+.stab:hover{color:var(--txt);}
+.settings-panel{display:none;}
+.settings-panel.active{display:block;}
+.set-section{background:var(--panel);border:1px solid var(--bdr);border-radius:var(--r2);padding:20px;margin-bottom:16px;}
+.set-title{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:8px;}
+.set-sub{font-size:12px;color:var(--txt2);margin-bottom:16px;line-height:1.5;}
+.shift-config-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+.shift-card{background:var(--bg3);border:1px solid var(--bdr);border-radius:var(--r);padding:14px;}
+.shift-card-label{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:7px;}
+.shift-dot-a{width:8px;height:8px;border-radius:50%;background:#4f8ef7;display:inline-block;}
+.shift-dot-b{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;}
+.shift-dot-c{width:8px;height:8px;border-radius:50%;background:var(--purple);display:inline-block;}
+.time-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;}
+.time-row label{font-size:11px;color:var(--txt3);width:36px;flex-shrink:0;}
+.tc2{background:var(--bg2);border:1px solid var(--bdr);color:var(--txt);border-radius:var(--r);padding:6px 10px;font-size:13px;font-family:'DM Mono',monospace;outline:none;width:100%;transition:.15s;}
+.tc2:focus{border-color:var(--acc);}
+.hours-badge{background:var(--acc-dim);color:var(--acc);border:1px solid rgba(232,197,71,.3);border-radius:4px;padding:2px 8px;font-family:'DM Mono',monospace;font-size:11px;margin-top:6px;display:inline-block;}
+.staff-block-grid{display:flex;flex-direction:column;gap:10px;}
+.sblock-row{background:var(--bg3);border:1px solid var(--bdr);border-radius:var(--r);padding:12px 14px;display:flex;align-items:flex-start;gap:12px;}
+.sblock-info{flex:1;}
+.sblock-name{font-weight:500;font-size:13px;color:var(--txt);}
+.sblock-dept{font-size:11px;color:var(--txt2);}
+.sblock-dates{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.sblock-pill{background:rgba(240,74,88,.1);border:1px solid rgba(240,74,88,.25);border-radius:4px;padding:2px 8px;font-family:'DM Mono',monospace;font-size:11px;color:var(--red);display:flex;align-items:center;gap:5px;}
+.sblock-pill button{background:none;border:none;color:var(--red);cursor:pointer;font-size:13px;opacity:.6;line-height:1;}
+.sblock-pill button:hover{opacity:1;}
+.add-block-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;}
+.general-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.gen-item{background:var(--bg3);border:1px solid var(--bdr);border-radius:var(--r);padding:14px;}
+.gen-label{font-size:11px;color:var(--txt2);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;}
+.gen-val{font-size:13px;color:var(--txt);}
+.danger-zone{border-color:rgba(240,74,88,.3)!important;}
+.danger-zone .set-title{color:var(--red);}
+/* SCROLL FIX */
+.tbl-scroll{overflow-x:auto;}
+
+/* RESPONSIVE HELPERS */
+.flex-gap{display:flex;gap:10px;align-items:center;}
+</style>
+</head>
+<body>
+
+<header>
+  <div style="display:flex;align-items:center;gap:0">
+    <div style="display:flex;flex-direction:column;gap:1px">
+      <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--txt3);text-transform:uppercase">Ankuram Labs</div>
+      <div class="logo">Lab<em>Roster</em></div>
+    </div>
+    <span class="logo-badge">Admin</span>
+  </div>
+  <div class="hdr-right">
+    <div class="hdr-clock" id="clock">--:--:--</div>
+    <span id="syncIndicator" style="font-size:11px;font-family:'DM Mono',monospace;padding:4px 10px;background:var(--bg3);border:1px solid var(--bdr);border-radius:var(--r)">⚪ Not connected</span>
+    <button class="btn btn-ghost btn-sm" onclick="loadFromSheets()">↓ Load</button>
+    <button class="btn btn-ghost btn-sm" onclick="fullSync()">↑ Sync</button>
+    <button class="btn btn-ghost btn-sm" onclick="openModal('addEmpMod')">+ Staff</button>
+    <button class="btn btn-acc btn-sm" onclick="openModal('assignMod')">+ Assign Shift</button>
+  </div>
+</header>
+
+<div class="app">
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div style="margin-bottom:6px">
+    <div class="sl">Overview</div>
+    <div class="ni active" onclick="nav('dashboard')"><span class="ico">📊</span>Dashboard</div>
+    <div class="ni" onclick="nav('roster')"><span class="ico">📋</span>Duty Roster</div>
+    <div class="ni" onclick="nav('calendar')"><span class="ico">📅</span>Calendar</div>
+  </div>
+  <div style="margin-bottom:6px">
+    <div class="sl">Management</div>
+    <div class="ni" onclick="nav('leaves')"><span class="ico">📩</span>Leave Requests <span class="nb orange" id="leaveBadge">0</span></div>
+    <div class="ni" onclick="nav('lockdays')"><span class="ico">🔒</span>Lock Days</div>
+    <div class="ni" onclick="nav('staff')"><span class="ico">👥</span>Staff</div>
+  </div>
+  <div style="margin-bottom:6px">
+    <div class="sl">System</div>
+    <div class="ni" onclick="nav('settings')"><span class="ico">⚙️</span>Settings</div>
+  </div>
+  <div>
+    <div class="sl">Access</div>
+    <div class="ni" onclick="openStaffPortal()"><span class="ico">📱</span>Staff Portal →</div>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<main class="main">
+
+<!-- DASHBOARD -->
+<div class="view active" id="view-dashboard">
+  <div class="ph">
+    <div><div class="pt">Command Centre</div><div class="ps">Today's live duty snapshot — all departments</div></div>
+    <div class="pa">
+      <button class="btn btn-ghost btn-sm" onclick="window.print()">🖨 Print</button>
+      <button class="btn btn-ghost btn-sm" onclick="exportCSV()">⬇ Export</button>
+    </div>
+  </div>
+  <div class="sg">
+    <div class="sc"><div class="sl2">Total Staff</div><div class="sv c-acc" id="s1">0</div><div class="ss">Registered</div></div>
+    <div class="sc"><div class="sl2">On Duty Today</div><div class="sv c-grn" id="s2">0</div><div class="ss">All shifts</div></div>
+    <div class="sc"><div class="sl2">Pending Leaves</div><div class="sv c-org" id="s3">0</div><div class="ss">Awaiting approval</div></div>
+    <div class="sc"><div class="sl2">Locked Days</div><div class="sv c-red" id="s4">0</div><div class="ss">No leave allowed</div></div>
+  </div>
+  <div class="sleg">
+    <div class="sl-item"><div class="sl-dot" style="background:#4f8ef7"></div><b>Shift A</b><span class="slt">07:00–16:00</span></div>
+    <div class="sl-item"><div class="sl-dot" style="background:var(--green)"></div><b>Shift B</b><span class="slt">14:00–23:00</span></div>
+    <div class="sl-item"><div class="sl-dot" style="background:var(--purple)"></div><b>Shift C</b><span class="slt">22:00–07:00</span></div>
+    <div class="sl-item" style="margin-left:auto"><span style="color:var(--txt2)">Each shift:</span> <b>9 hours</b></div>
+  </div>
+  <div class="tw">
+    <div class="tb-bar">
+      <b style="font-size:13px">Today's Roster</b>
+      <select id="dd-dept" onchange="renderDash()"><option value="">All Departments</option></select>
+      <select id="dd-shift" onchange="renderDash()">
+        <option value="">All Shifts</option>
+        <option>A</option><option>B</option><option>C</option>
+      </select>
+    </div>
+    <div class="tbl-scroll"><table class="tbl"><thead><tr>
+      <th>Employee</th><th>Department</th><th>Shift</th><th>Time</th><th>Site</th><th>Status</th><th>Actions</th>
+    </tr></thead><tbody id="dashTbody"></tbody></table></div>
+  </div>
+</div>
+
+<!-- ROSTER -->
+<div class="view" id="view-roster">
+  <div class="ph">
+    <div><div class="pt">Duty Roster</div><div class="ps">Full shift assignments across all departments & dates</div></div>
+    <div class="pa">
+      <button class="btn btn-ghost btn-sm" onclick="exportCSV()">⬇ Export</button>
+      <button class="btn btn-acc btn-sm" onclick="openModal('assignMod')">+ Assign Shift</button>
+    </div>
+  </div>
+  <div class="tw">
+    <div class="tb-bar">
+      <select id="r-dept" onchange="renderRoster()"><option value="">All Depts</option></select>
+      <select id="r-shift" onchange="renderRoster()">
+        <option value="">All Shifts</option><option>A</option><option>B</option><option>C</option>
+      </select>
+      <input type="date" id="r-date" onchange="renderRoster()">
+      <input type="text" id="r-search" placeholder="Search staff…" oninput="renderRoster()" style="width:160px">
+    </div>
+    <div class="tbl-scroll"><table class="tbl"><thead><tr>
+      <th>ID</th><th>Staff</th><th>Dept</th><th>Shift</th><th>Time</th><th>Site</th><th>Date</th><th>Status</th><th>Actions</th>
+    </tr></thead><tbody id="rosterTbody"></tbody></table></div>
+  </div>
+</div>
+
+<!-- CALENDAR -->
+<div class="view" id="view-calendar">
+  <div class="ph">
+    <div><div class="pt">Roster Calendar</div><div class="ps">Monthly view · Click a day to manage · Lock icon = no leaves</div></div>
+    <div class="pa">
+      <button class="btn btn-ghost btn-sm" onclick="calNav(-1)">← Prev</button>
+      <button class="btn btn-ghost btn-sm" onclick="calNav(1)">Next →</button>
+    </div>
+  </div>
+  <div class="cal-wrap">
+    <div class="cal-hdr">
+      <div class="month-label" id="calLabel">—</div>
+      <button class="btn btn-ghost btn-sm" onclick="lockMonth()">🔒 Lock Entire Month</button>
+      <button class="btn btn-ghost btn-sm" onclick="unlockMonth()">🔓 Unlock Month</button>
+    </div>
+    <div class="cal-grid" id="calDaysHdr"></div>
+    <div class="cal-grid" id="calGrid"></div>
+  </div>
+</div>
+
+<!-- LEAVE REQUESTS -->
+<div class="view" id="view-leaves">
+  <div class="ph">
+    <div><div class="pt">Leave Requests</div><div class="ps">Review and action staff leave applications with replacement details</div></div>
+    <div class="pa">
+      <select id="lv-filter" onchange="renderLeaves()" style="background:var(--bg3);border:1px solid var(--bdr);color:var(--txt);border-radius:var(--r);padding:6px 10px;font-size:12px;outline:none;">
+        <option value="">All Status</option>
+        <option value="pending">Pending</option>
+        <option value="approved">Approved</option>
+        <option value="rejected">Rejected</option>
+      </select>
+    </div>
+  </div>
+  <div id="leavesList"></div>
+</div>
+
+<!-- LOCK DAYS -->
+<div class="view" id="view-lockdays">
+  <div class="ph">
+    <div><div class="pt">Lock Days</div><div class="ps">Locked days prevent staff from submitting leave requests</div></div>
+  </div>
+  <div class="warn-box">🔒 Locked days block ALL leave requests from staff for those dates. Staff will see a "Leave not allowed" message when trying to apply. Use this for critical lab days, inspections, or understaffed periods.</div>
+  <div class="lock-panel">
+    <div class="lock-panel-title">🔒 Currently Locked Dates</div>
+    <div class="locked-dates-list" id="lockedDatesList"></div>
+  </div>
+  <div class="tw">
+    <div class="tb-bar" style="gap:12px">
+      <b style="font-size:13px">Add Lock</b>
+      <label style="font-size:12px;color:var(--txt2)">From:</label>
+      <input type="date" id="lockFrom" class="fc" style="width:auto">
+      <label style="font-size:12px;color:var(--txt2)">To:</label>
+      <input type="date" id="lockTo" class="fc" style="width:auto">
+      <input type="text" id="lockReason" class="fc" placeholder="Reason (e.g. NABL audit)" style="flex:1;width:auto">
+      <button class="btn btn-red btn-sm" onclick="addLock()">🔒 Lock Dates</button>
+    </div>
+  </div>
+  <hr class="d">
+  <div class="sec-title">Lock History</div>
+  <div class="tbl-scroll"><table class="tbl" style="background:var(--panel);border-radius:var(--r2)"><thead><tr>
+    <th>From</th><th>To</th><th>Reason</th><th>Days</th><th>Actions</th>
+  </tr></thead><tbody id="lockHistTbody"></tbody></table></div>
+</div>
+
+<!-- STAFF -->
+<div class="view" id="view-staff">
+  <div class="ph">
+    <div><div class="pt">Staff Directory</div><div class="ps">All registered staff members with login credentials</div></div>
+    <div class="pa">
+      <button class="btn btn-acc btn-sm" onclick="openModal('addEmpMod')">+ Add Staff</button>
+    </div>
+  </div>
+  <div class="info-box">🔑 Each staff member's PIN is their login code for the Staff Portal. Share the Staff Portal URL and their PIN. Admin PIN is <b>0000</b> — change this in the settings.</div>
+  <div class="tw">
+    <div class="tbl-scroll"><table class="tbl"><thead><tr>
+      <th>ID</th><th>Name</th><th>Dept</th><th>Designation</th><th>Contact</th><th>Portal PIN</th><th>Actions</th>
+    </tr></thead><tbody id="staffTbody"></tbody></table></div>
+  </div>
+</div>
+
+<!-- SETTINGS -->
+<div class="view" id="view-settings">
+  <div class="ph">
+    <div><div class="pt">Settings</div><div class="ps">Configure staff, shifts, leave restrictions, and system preferences</div></div>
+  </div>
+
+  <!-- Sub-tabs -->
+  <div class="settings-tabs">
+    <div class="stab active" onclick="stab('staff-mgmt')">👥 Staff Management</div>
+    <div class="stab" onclick="stab('shift-config')">🕐 Shift Configuration</div>
+    <div class="stab" onclick="stab('leave-blocks')">🚫 Staff Leave Blocks</div>
+    <div class="stab" onclick="stab('general')">🏥 General</div>
+  </div>
+
+  <!-- ── STAFF MANAGEMENT ── -->
+  <div class="settings-panel active" id="sp-staff-mgmt">
+    <div class="set-section">
+      <div class="set-title">➕ Add New Staff</div>
+      <div class="set-sub">Add staff members who will appear in the roster and staff portal.</div>
+      <div class="fr">
+        <div class="fg"><label class="fl">Full Name</label><input class="fc" id="s-en" placeholder="Dr. Priya Sharma"></div>
+        <div class="fg"><label class="fl">Employee ID</label><input class="fc" id="s-eid" placeholder="LAB-042"></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><label class="fl">Department</label>
+          <select class="fc" id="s-edept" onchange="updateDeptDesig()">
+            <option>Lab Operations</option><option>Accession</option><option>Front Desk</option>
+            <option>Histopathology</option><option>Sample Transport</option><option>Sample Collection</option>
+            <option>Finance</option><option>Administration</option>
+          </select>
+        </div>
+        <div class="fg"><label class="fl">Designation</label><input class="fc" id="s-erole" placeholder="Lab Technician"></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><label class="fl">Contact Number</label><input class="fc" id="s-ephone" placeholder="+91 98765 43210"></div>
+        <div class="fg"><label class="fl">Portal PIN (4 digits)</label><input class="fc" id="s-epin" placeholder="1234" maxlength="4" inputmode="numeric"></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><label class="fl">Preferred Shift</label>
+          <select class="fc" id="s-epshift"><option value="A">Shift A</option><option value="B">Shift B</option><option value="C">Shift C</option></select>
+        </div>
+        <div class="fg"><label class="fl">Join Date</label><input class="fc" type="date" id="s-ejoin"></div>
+      </div>
+      <button class="btn btn-acc" onclick="settingsAddEmployee()">+ Add Staff Member</button>
+    </div>
+
+    <div class="set-section">
+      <div class="set-title">✏️ Edit / Remove Staff</div>
+      <div class="set-sub">Click a row to edit. Changes take effect immediately across the roster.</div>
+      <div class="tb-bar" style="padding:0 0 12px 0;background:transparent;border:none;">
+        <input type="text" id="s-search" class="fc" placeholder="Search by name or ID…" oninput="renderSettingsStaff()" style="width:240px">
+        <select id="s-dept-filter" class="fc" onchange="renderSettingsStaff()" style="width:180px">
+          <option value="">All Departments</option>
+        </select>
+      </div>
+      <div id="settingsStaffList"></div>
+    </div>
+  </div>
+
+  <!-- ── SHIFT CONFIGURATION ── -->
+  <div class="settings-panel" id="sp-shift-config">
+    <div class="set-section">
+      <div class="set-title">🕐 Shift Timings & Hours</div>
+      <div class="set-sub">Edit start time, end time, and custom label for each shift. Hours are computed automatically.</div>
+      <div class="shift-config-grid" id="shiftConfigGrid"></div>
+      <div style="margin-top:16px;display:flex;gap:10px">
+        <button class="btn btn-acc" onclick="saveShiftConfig()">Save Shift Settings</button>
+        <button class="btn btn-ghost" onclick="resetShiftConfig()">Reset to Defaults</button>
+      </div>
+    </div>
+    <div class="set-section">
+      <div class="set-title">📅 Leave Advance Notice</div>
+      <div class="set-sub">Minimum number of days in advance staff must submit a leave request.</div>
+      <div style="display:flex;align-items:center;gap:14px">
+        <input type="number" id="advanceDays" class="fc" min="1" max="30" value="3" style="width:100px">
+        <span style="font-size:13px;color:var(--txt2)">days minimum advance notice</span>
+        <button class="btn btn-acc btn-sm" onclick="saveAdvanceDays()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── STAFF LEAVE BLOCKS ── -->
+  <div class="settings-panel" id="sp-leave-blocks">
+    <div class="set-section">
+      <div class="set-title">🚫 Block Leave for Specific Staff on Specific Dates</div>
+      <div class="set-sub">Use this to prevent a specific staff member from applying for leave on critical duty days — e.g. the only pathologist available during an inspection period.</div>
+      <div class="fr" style="margin-bottom:14px">
+        <div class="fg"><label class="fl">Staff Member</label>
+          <select class="fc" id="lb-emp"><option value="">— Select Staff —</option></select>
+        </div>
+        <div class="fg"><label class="fl">Block From</label><input class="fc" type="date" id="lb-from"></div>
+        <div class="fg"><label class="fl">Block To</label><input class="fc" type="date" id="lb-to"></div>
+        <div class="fg" style="justify-content:flex-end">
+          <label class="fl">&nbsp;</label>
+          <button class="btn btn-red" onclick="addStaffLeaveBlock()" style="margin-top:0">🚫 Block Dates</button>
+        </div>
+      </div>
+      <div class="info-box" style="margin-bottom:0">This is different from global day locks. Staff-specific blocks affect only the selected person — other staff can still request leave on those dates.</div>
+    </div>
+
+    <div class="set-section">
+      <div class="set-title">Current Staff Leave Blocks</div>
+      <div id="staffBlocksList"></div>
+    </div>
+  </div>
+
+  <!-- ── GENERAL ── -->
+  <div class="settings-panel" id="sp-general">
+    <div class="set-section">
+      <div class="set-title">🏥 Lab Information</div>
+      <div class="set-sub">Displayed in headers and printed reports.</div>
+      <div class="general-grid">
+        <div class="fg"><label class="fl">Lab Name</label><input class="fc" id="g-labname" value="Ankuram Labs"></div>
+        <div class="fg"><label class="fl">Lab Code / ID</label><input class="fc" id="g-labcode" placeholder="e.g. NABL-12345"></div>
+        <div class="fg"><label class="fl">City</label><input class="fc" id="g-city" placeholder="Varanasi"></div>
+        <div class="fg"><label class="fl">Admin Contact</label><input class="fc" id="g-contact" placeholder="+91 98765 43210"></div>
+      </div>
+      <button class="btn btn-acc btn-sm" onclick="saveGeneral()">Save Lab Info</button>
+    </div>
+
+    <div class="set-section">
+      <div class="set-title">🔑 Admin PIN</div>
+      <div class="set-sub">Change the admin master PIN. Default is 0000.</div>
+      <div style="display:flex;gap:10px;align-items:flex-end">
+        <div class="fg" style="margin-bottom:0"><label class="fl">Current PIN</label><input class="fc" type="password" id="g-oldpin" placeholder="••••" maxlength="4" style="width:120px;text-align:center;letter-spacing:4px"></div>
+        <div class="fg" style="margin-bottom:0"><label class="fl">New PIN</label><input class="fc" type="password" id="g-newpin" placeholder="••••" maxlength="4" style="width:120px;text-align:center;letter-spacing:4px"></div>
+        <div class="fg" style="margin-bottom:0"><label class="fl">Confirm PIN</label><input class="fc" type="password" id="g-confirmpin" placeholder="••••" maxlength="4" style="width:120px;text-align:center;letter-spacing:4px"></div>
+        <button class="btn btn-acc" onclick="changeAdminPin()">Change PIN</button>
+      </div>
+    </div>
+
+    <div class="set-section">
+      <div class="set-title">🏢 Department Management</div>
+      <div class="set-sub">Add or remove departments. Removing a department does not delete staff assigned to it.</div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <input class="fc" id="g-newdept" placeholder="New department name…" style="flex:1">
+        <button class="btn btn-acc" onclick="addDept()">+ Add Dept</button>
+      </div>
+      <div id="deptList" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+    </div>
+
+    <div class="set-section">
+      <div class="set-title">🔗 Google Sheets Connection</div>
+      <div class="set-sub">Connect to Google Sheets for persistent cloud storage. All data syncs automatically on every change.</div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span id="syncIndicator2" style="font-size:12px;font-family:'DM Mono',monospace;color:var(--txt2)">Status: checking…</span>
+        <button class="btn btn-acc btn-sm" onclick="openModal('connectMod');document.getElementById('gasUrlInput').value=localStorage.getItem('gasUrl')||''">⚙ Configure Connection</button>
+        <button class="btn btn-ghost btn-sm" onclick="loadFromSheets()">↓ Load from Sheets</button>
+        <button class="btn btn-ghost btn-sm" onclick="fullSync()">↑ Full Sync to Sheets</button>
+      </div>
+      <div style="margin-top:10px;font-size:11px;color:var(--txt3);font-family:'DM Mono',monospace" id="gasUrlDisplay"></div>
+    </div>
+
+    <div class="set-section danger-zone">
+      <div class="set-title">⚠️ Danger Zone</div>
+      <div class="set-sub">Irreversible actions. Use with caution.</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-red" onclick="clearAllRoster()">🗑 Clear All Roster Entries</button>
+        <button class="btn btn-red" onclick="clearAllLeaves()">🗑 Clear All Leave Requests</button>
+        <button class="btn btn-red" onclick="clearAllLocks()">🗑 Remove All Date Locks</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</main>
+</div>
+
+<!-- MODALS -->
+<!-- Add Employee -->
+<div class="overlay" id="addEmpMod">
+  <div class="modal">
+    <div class="mh"><div class="mt">Add Staff Member</div><button class="xb" onclick="closeModal('addEmpMod')">✕</button></div>
+    <div class="mb">
+      <div class="fr">
+        <div class="fg"><label class="fl">Full Name</label><input class="fc" id="en" placeholder="Dr. Priya Sharma"></div>
+        <div class="fg"><label class="fl">Employee ID</label><input class="fc" id="eid" placeholder="LAB-042"></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><label class="fl">Department</label>
+          <select class="fc" id="edept">
+            <option>Lab Operations</option><option>Accession</option><option>Front Desk</option>
+            <option>Histopathology</option><option>Sample Transport</option><option>Sample Collection</option>
+            <option>Finance</option><option>Administration</option>
+          </select>
+        </div>
+        <div class="fg"><label class="fl">Designation</label><input class="fc" id="erole" placeholder="Lab Technician"></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><label class="fl">Contact</label><input class="fc" id="ephone" placeholder="+91 98765 43210"></div>
+        <div class="fg"><label class="fl">Portal PIN (4 digits)</label><input class="fc" id="epin" placeholder="1234" maxlength="4"></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><label class="fl">Preferred Shift</label>
+          <select class="fc" id="epshift"><option value="A">Shift A (07–16)</option><option value="B">Shift B (14–23)</option><option value="C">Shift C (22–07)</option></select>
+        </div>
+        <div class="fg"><label class="fl">Join Date</label><input class="fc" type="date" id="ejoin"></div>
+      </div>
+    </div>
+    <div class="mf"><button class="btn btn-ghost" onclick="closeModal('addEmpMod')">Cancel</button><button class="btn btn-acc" onclick="addEmployee()">Save Staff</button></div>
+  </div>
+</div>
+
+<!-- Assign Shift -->
+<div class="overlay" id="assignMod">
+  <div class="modal">
+    <div class="mh"><div class="mt">Assign / Edit Shift</div><button class="xb" onclick="closeModal('assignMod')">✕</button></div>
+    <div class="mb">
+      <div class="fr">
+        <div class="fg"><label class="fl">Staff Member</label><select class="fc" id="as-emp"></select></div>
+        <div class="fg"><label class="fl">Date</label><input class="fc" type="date" id="as-date"></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><label class="fl">Shift</label>
+          <select class="fc" id="as-shift">
+            <option value="A">Shift A — 07:00 to 16:00</option>
+            <option value="B">Shift B — 14:00 to 23:00</option>
+            <option value="C">Shift C — 22:00 to 07:00 (+1)</option>
+            <option value="OFF">Day Off</option>
+          </select>
+        </div>
+        <div class="fg"><label class="fl">Site / Location</label><input class="fc" id="as-site" placeholder="Main Lab"></div>
+      </div>
+      <div class="fg"><label class="fl">Notes</label><input class="fc" id="as-notes" placeholder="Any special instructions…"></div>
+    </div>
+    <div class="mf"><button class="btn btn-ghost" onclick="closeModal('assignMod')">Cancel</button><button class="btn btn-acc" onclick="assignShift()">Assign</button></div>
+  </div>
+</div>
+
+<!-- Leave Decision Modal -->
+<div class="overlay" id="leaveMod">
+  <div class="modal">
+    <div class="mh"><div class="mt">Leave Request Detail</div><button class="xb" onclick="closeModal('leaveMod')">✕</button></div>
+    <div class="mb" id="leaveModBody"></div>
+    <div class="mf" id="leaveModFoot"></div>
+  </div>
+</div>
+
+<!-- Edit Staff Modal -->
+<div class="overlay" id="editStaffMod">
+  <div class="modal">
+    <div class="mh"><div class="mt">Edit Staff Member</div><button class="xb" onclick="closeModal('editStaffMod')">✕</button></div>
+    <div class="mb">
+      <div class="fr">
+        <div class="fg"><label class="fl">Full Name</label><input class="fc" id="es-name"></div>
+        <div class="fg"><label class="fl">Employee ID</label><input class="fc" id="es-id" readonly style="opacity:.5;cursor:default"></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><label class="fl">Department</label>
+          <select class="fc" id="es-dept">
+            <option>Lab Operations</option><option>Accession</option><option>Front Desk</option>
+            <option>Histopathology</option><option>Sample Transport</option><option>Sample Collection</option>
+            <option>Finance</option><option>Administration</option>
+          </select>
+        </div>
+        <div class="fg"><label class="fl">Designation</label><input class="fc" id="es-role"></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><label class="fl">Contact</label><input class="fc" id="es-contact"></div>
+        <div class="fg"><label class="fl">Portal PIN (4 digits)</label><input class="fc" id="es-pin" maxlength="4" inputmode="numeric"></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><label class="fl">Preferred Shift</label>
+          <select class="fc" id="es-pshift"><option value="A">Shift A</option><option value="B">Shift B</option><option value="C">Shift C</option></select>
+        </div>
+        <div class="fg"><label class="fl">Join Date</label><input class="fc" type="date" id="es-join"></div>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn btn-red" onclick="deleteStaffFromModal()" style="margin-right:auto">Remove Staff</button>
+      <button class="btn btn-ghost" onclick="closeModal('editStaffMod')">Cancel</button>
+      <button class="btn btn-acc" onclick="saveEditStaff()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<div class="tc" id="toastC"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  GOOGLE SHEETS API LAYER  —  Ankuram Labs LabRoster Pro
+// ═══════════════════════════════════════════════════════
+
+// ── PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE ──
+const GAS_URL = localStorage.getItem('gasUrl') || '';
+
+// ── API helpers ──
+async function apiGet() {
+  if (!GAS_URL) return null;
+  try {
+    const r = await fetch(GAS_URL + '?t=' + Date.now(), { method: 'GET' });
+    const json = await r.json();
+    return json.ok ? json.data : null;
+  } catch(e) { console.warn('apiGet failed:', e); return null; }
+}
+
+async function apiPost(payload) {
+  if (!GAS_URL) return false;
+  try {
+    const r = await fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      headers: { 'Content-Type': 'text/plain' } // avoids preflight CORS
+    });
+    const json = await r.json();
+    return json.ok !== false;
+  } catch(e) { console.warn('apiPost failed:', e); return false; }
+}
+
+// ── Sync state ──
+let syncStatus = 'offline'; // 'offline' | 'syncing' | 'ok' | 'error'
+let pendingWrites = []; // queue writes when offline
+
+function setSyncStatus(s) {
+  syncStatus = s;
+  const el = document.getElementById('syncIndicator');
+  if (!el) return;
+  const map = {
+    offline:  { text: '⚪ Not connected',   color: 'var(--txt3)' },
+    syncing:  { text: '🔄 Syncing…',         color: 'var(--orange)' },
+    ok:       { text: '🟢 Synced',            color: 'var(--green)' },
+    error:    { text: '🔴 Sync error',        color: 'var(--red)' },
+    local:    { text: '🟡 Local only',        color: 'var(--yellow)' },
+  };
+  const m = map[s] || map.offline;
+  el.textContent = m.text;
+  el.style.color = m.color;
+}
+
+// ── Load all data from Sheets ──
+async function loadFromSheets() {
+  if (!GAS_URL) { setSyncStatus('offline'); return false; }
+  setSyncStatus('syncing');
+  showLoader('Loading from Google Sheets…');
+  const data = await apiGet();
+  hideLoader();
+  if (!data) { setSyncStatus('error'); toast('Could not load from Google Sheets', 'err'); return false; }
+
+  if (data.employees?.length)    DB.employees    = data.employees;
+  if (data.roster?.length)       DB.roster       = data.roster;
+  if (data.leaveRequests?.length)DB.leaveRequests= data.leaveRequests;
+  if (data.lockedRanges?.length) DB.lockedRanges = data.lockedRanges;
+  if (data.staffBlocks?.length)  DB.staffLeaveBlocks = data.staffBlocks;
+
+  setSyncStatus('ok');
+  updateStats(); renderDash(); populateDropdowns();
+  toast('Data loaded from Google Sheets', 'ok');
+  return true;
+}
+
+// ── Push a single record to Sheets ──
+async function pushRecord(sheetKey, action, row, id) {
+  if (!GAS_URL) { setSyncStatus('local'); return; }
+  setSyncStatus('syncing');
+  const ok = await apiPost({ action, sheet: sheetKey, row, id });
+  setSyncStatus(ok ? 'ok' : 'error');
+  if (!ok) {
+    pendingWrites.push({ sheetKey, action, row, id });
+    toast('Saved locally — will sync when connected', 'warn');
+  }
+}
+
+// ── Full sync (push everything) ──
+async function fullSync() {
+  if (!GAS_URL) { toast('Enter your Google Sheets API URL in Settings first', 'warn'); return; }
+  setSyncStatus('syncing');
+  showLoader('Syncing all data to Google Sheets…');
+  let ok = true;
+  const ops = [
+    { key: 'employees',     data: DB.employees },
+    { key: 'roster',        data: DB.roster },
+    { key: 'leaveRequests', data: DB.leaveRequests },
+    { key: 'lockedRanges',  data: DB.lockedRanges },
+    { key: 'staffBlocks',   data: DB.staffLeaveBlocks || [] },
+  ];
+  for (const op of ops) {
+    const res = await apiPost({ action: 'bulkReplace', sheet: op.key, rows: op.data });
+    if (!res) { ok = false; break; }
+  }
+  hideLoader();
+  setSyncStatus(ok ? 'ok' : 'error');
+  toast(ok ? '✅ Full sync complete' : '❌ Sync failed — check URL', ok ? 'ok' : 'err');
+}
+
+// ── Init Sheets structure ──
+async function initSheets() {
+  if (!GAS_URL) { toast('Enter API URL first', 'warn'); return; }
+  setSyncStatus('syncing');
+  showLoader('Creating sheets in Google Sheets…');
+  const ok = await apiPost({ action: 'initSheets', sheet: 'employees' });
+  hideLoader();
+  setSyncStatus(ok ? 'ok' : 'error');
+  toast(ok ? '✅ Sheets created! Now click Full Sync.' : '❌ Failed — check URL', ok ? 'ok' : 'err');
+}
+
+// ── Loader overlay ──
+function showLoader(msg) {
+  document.getElementById('loaderMsg').textContent = msg || 'Please wait…';
+  document.getElementById('loaderOverlay').style.display = 'flex';
+}
+function hideLoader() {
+  document.getElementById('loaderOverlay').style.display = 'none';
+}
+
+// ── Save GAS URL ──
+function saveGasUrl() {
+  const url = document.getElementById('gasUrlInput').value.trim();
+  if (!url.startsWith('https://script.google.com')) {
+    toast('Invalid URL — must start with https://script.google.com', 'err'); return;
+  }
+  localStorage.setItem('gasUrl', url);
+  location.reload();
+}
+
+// ── Auto-save hooks (call these after every data mutation) ──
+function afterAddEmployee(emp)    { pushRecord('employees', 'append', emp); }
+function afterUpdateEmployee(emp) { pushRecord('employees', 'update', emp, emp.id); }
+function afterDeleteEmployee(id)  { pushRecord('employees', 'delete', null, id); }
+function afterAddRoster(r)        { pushRecord('roster', 'append', r); }
+function afterUpdateRoster(r)     { pushRecord('roster', 'update', r, r.id); }
+function afterDeleteRoster(id)    { pushRecord('roster', 'delete', null, id); }
+function afterAddLeave(lr)        { pushRecord('leaveRequests', 'append', lr); }
+function afterUpdateLeave(lr)     { pushRecord('leaveRequests', 'update', lr, lr.id); }
+function afterAddLock(lk)         { pushRecord('lockedRanges', 'append', lk); }
+function afterDeleteLock(id)      { pushRecord('lockedRanges', 'delete', null, id); }
+function afterAddStaffBlock(b)    { pushRecord('staffBlocks', 'append', b); }
+function afterDeleteStaffBlock(id){ pushRecord('staffBlocks', 'delete', null, id); }
+
+
+// ═══ SHARED DATA STORE ═══
+// In production this would be an API / Google Sheets
+const DB = {
+  employees: [],
+  roster: [],
+  leaveRequests: [],
+  lockedRanges: [],
+};
+window.DB = DB; // shared with staff portal
+
+const SHIFTS = {
+  A:{label:'Shift A',time:'07:00–16:00'},
+  B:{label:'Shift B',time:'14:00–23:00'},
+  C:{label:'Shift C',time:'22:00–07:00 (+1)'},
+  OFF:{label:'Day Off',time:'—'}
+};
+const DEPTS = ['Lab Operations','Accession','Front Desk','Histopathology','Sample Transport','Sample Collection','Finance','Administration'];
+const SITES = ['Main Lab','Site B - Sigra','Site C - Lanka','Site D - BHU','Main Lab','Main Lab','Main Lab','Site E - Cantonment'];
+
+// ═══ SEED DATA ═══
+function seed(){
+  const staff=[
+    ['Dr. Priya Sharma','LAB-001','Lab Technician','Lab Operations','9876543001','1234'],
+    ['Rahul Mishra','LAB-002','Senior Technician','Lab Operations','9876543002','2345'],
+    ['Anita Verma','LAB-003','Sample Collector','Sample Collection','9876543003','3456'],
+    ['Suresh Gupta','LAB-004','Lab Assistant','Accession','9876543004','4567'],
+    ['Meena Yadav','LAB-005','Receptionist','Front Desk','9876543005','5678'],
+    ['Dr. Deepak Tiwari','LAB-006','Pathologist','Histopathology','9876543006','6789'],
+    ['Kavita Singh','LAB-007','Cytotechnician','Histopathology','9876543007','7890'],
+    ['Vikram Patel','LAB-008','Driver/Courier','Sample Transport','9876543008','8901'],
+    ['Nisha Agarwal','LAB-009','Accountant','Finance','9876543009','9012'],
+    ['Ajay Kumar','LAB-010','Admin Officer','Administration','9876543010','0123'],
+    ['Sunita Pandey','LAB-011','Sample Collector','Sample Collection','9876543011','1122'],
+    ['Rohit Srivastava','LAB-012','Lab Technician','Lab Operations','9876543012','2233'],
+  ];
+  staff.forEach((s,i)=>DB.employees.push({id:s[1],name:s[0],role:s[2],dept:s[3],contact:s[4],pin:s[5],preferredShift:['A','B','C'][i%3],joinDate:'2023-01-01'}));
+
+  const today=new Date();
+  for(let d=-7;d<=14;d++){
+    const dt=new Date(today); dt.setDate(today.getDate()+d);
+    const ds=fmtDate(dt);
+    DB.employees.forEach((emp,i)=>{
+      const sh=['A','B','C','A','B','C','OFF','A'][(i+d+24)%8];
+      DB.roster.push({id:`R${ds}${emp.id}`,empId:emp.id,date:ds,shift:sh,site:SITES[i%SITES.length],notes:'',status:'scheduled'});
+    });
+  }
+
+  // sample leave requests
+  DB.leaveRequests.push({
+    id:'LR001',empId:'LAB-003',
+    leaveDate: fmtDate(addDays(today,4)),
+    reason:'Family function',
+    replacementEmpId:'LAB-011',
+    status:'pending',
+    submittedOn: fmtDate(today)
+  });
+  DB.leaveRequests.push({
+    id:'LR002',empId:'LAB-005',
+    leaveDate: fmtDate(addDays(today,6)),
+    reason:'Medical appointment',
+    replacementEmpId:'LAB-004',
+    status:'pending',
+    submittedOn: fmtDate(today)
+  });
+  DB.leaveRequests.push({
+    id:'LR003',empId:'LAB-007',
+    leaveDate: fmtDate(addDays(today,-2)),
+    reason:'Personal',
+    replacementEmpId:'LAB-006',
+    status:'approved',
+    submittedOn: fmtDate(addDays(today,-5))
+  });
+
+  // seed lock
+  DB.lockedRanges.push({id:'LK001',from:fmtDate(addDays(today,10)),to:fmtDate(addDays(today,11)),reason:'NABL Inspection',addedOn:fmtDate(today)});
+}
+
+// ═══ UTILS ═══
+function fmtDate(d){return d.toISOString().split('T')[0];}
+function addDays(d,n){const r=new Date(d);r.setDate(d.getDate()+n);return r;}
+function today(){return fmtDate(new Date());}
+function getEmp(id){return DB.employees.find(e=>e.id===id);}
+function isDateLocked(ds){
+  return DB.lockedRanges.some(r=>ds>=r.from && ds<=r.to);
+}
+function toast(msg,t=''){
+  const el=document.createElement('div');
+  el.className=`toast ${t}`;el.textContent=msg;
+  document.getElementById('toastC').appendChild(el);
+  setTimeout(()=>el.remove(),3000);
+}
+
+// ═══ NAV ═══
+function nav(v){
+  document.querySelectorAll('.view').forEach(e=>e.classList.remove('active'));
+  document.querySelectorAll('.ni').forEach(e=>e.classList.remove('active'));
+  document.getElementById('view-'+v).classList.add('active');
+  const ni=document.querySelector(`.ni[onclick="nav('${v}')"]`);
+  if(ni) ni.classList.add('active');
+  const renders={dashboard:renderDash,roster:renderRoster,calendar:renderCalendar,leaves:renderLeaves,lockdays:renderLockDays,staff:renderStaff,settings:()=>{renderSettingsStaff();renderShiftConfig();}};
+  if(renders[v]) renders[v]();
+  updateStats();
+}
+
+function openStaffPortal(){
+  window.open('staff.html','_blank');
+}
+
+// ═══ STATS ═══
+function updateStats(){
+  const tod=today();
+  const todR=DB.roster.filter(r=>r.date===tod);
+  document.getElementById('s1').textContent=DB.employees.length;
+  document.getElementById('s2').textContent=todR.filter(r=>r.shift!=='OFF').length;
+  document.getElementById('s3').textContent=DB.leaveRequests.filter(r=>r.status==='pending').length;
+  document.getElementById('s4').textContent=DB.lockedRanges.reduce((a,r)=>{
+    let s=new Date(r.from),e=new Date(r.to),cnt=0;
+    while(s<=e){cnt++;s.setDate(s.getDate()+1);}return a+cnt;
+  },0);
+  const pb=DB.leaveRequests.filter(r=>r.status==='pending').length;
+  document.getElementById('leaveBadge').textContent=pb;
+  document.getElementById('leaveBadge').style.display=pb?'inline':'none';
+}
+
+// ═══ DASHBOARD TABLE ═══
+function renderDash(){
+  const dept=document.getElementById('dd-dept')?.value||'';
+  const shift=document.getElementById('dd-shift')?.value||'';
+  const tod=today();
+  let rows=DB.roster.filter(r=>{
+    if(r.date!==tod)return false;
+    const e=getEmp(r.empId); if(!e)return false;
+    if(dept&&e.dept!==dept)return false;
+    if(shift&&r.shift!==shift)return false;
+    return true;
+  });
+  const tb=document.getElementById('dashTbody'); tb.innerHTML='';
+  rows.forEach(r=>{
+    const e=getEmp(r.empId); if(!e)return;
+    tb.innerHTML+=`<tr>
+      <td><div class="emp-nm">${e.name}</div><div class="emp-id">${e.id}</div></td>
+      <td><span class="dtag">${e.dept}</span></td>
+      <td><span class="stag ${r.shift}">${r.shift}</span></td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px">${SHIFTS[r.shift].time}</td>
+      <td>${r.site||'—'}</td>
+      <td><span class="approved-tag">Scheduled</span></td>
+      <td><button class="btn btn-icon btn-sm" onclick="prefillAssign('${r.id}')">✏</button>
+          <button class="btn btn-icon btn-sm" style="color:var(--red)" onclick="deleteEntry('${r.id}')">✕</button></td>
+    </tr>`;
+  });
+  if(!rows.length) tb.innerHTML=`<tr><td colspan="7" class="empty" style="padding:40px">No roster entries for today.</td></tr>`;
+}
+
+// ═══ ROSTER TABLE ═══
+function renderRoster(){
+  const dept=document.getElementById('r-dept')?.value||'';
+  const shift=document.getElementById('r-shift')?.value||'';
+  const date=document.getElementById('r-date')?.value||'';
+  const search=(document.getElementById('r-search')?.value||'').toLowerCase();
+  let rows=[...DB.roster].filter(r=>{
+    const e=getEmp(r.empId); if(!e)return false;
+    if(dept&&e.dept!==dept)return false;
+    if(shift&&r.shift!==shift)return false;
+    if(date&&r.date!==date)return false;
+    if(search&&!e.name.toLowerCase().includes(search))return false;
+    return true;
+  }).sort((a,b)=>a.date<b.date?-1:1);
+  const tb=document.getElementById('rosterTbody'); tb.innerHTML='';
+  rows.forEach(r=>{
+    const e=getEmp(r.empId); if(!e)return;
+    const locked=isDateLocked(r.date);
+    tb.innerHTML+=`<tr>
+      <td><span class="emp-id">${e.id}</span></td>
+      <td><div class="emp-nm">${e.name}</div><div class="emp-rl">${e.role}</div></td>
+      <td><span class="dtag">${e.dept}</span></td>
+      <td><span class="stag ${r.shift}">${r.shift}</span></td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px">${SHIFTS[r.shift].time}</td>
+      <td>${r.site||'—'}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px">${r.date}${locked?' <span class="locked-tag">🔒</span>':''}</td>
+      <td><span class="approved-tag">Scheduled</span></td>
+      <td><button class="btn btn-icon btn-sm" onclick="prefillAssign('${r.id}')">✏</button>
+          <button class="btn btn-icon btn-sm" style="color:var(--red)" onclick="deleteEntry('${r.id}')">✕</button></td>
+    </tr>`;
+  });
+  if(!rows.length) tb.innerHTML=`<tr><td colspan="9" class="empty" style="padding:30px">No records match filters.</td></tr>`;
+}
+
+// ═══ CALENDAR ═══
+let calYear=new Date().getFullYear(), calMonth=new Date().getMonth();
+function calNav(d){calMonth+=d;if(calMonth>11){calMonth=0;calYear++;}if(calMonth<0){calMonth=11;calYear--;}renderCalendar();}
+
+function renderCalendar(){
+  const label=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  document.getElementById('calLabel').textContent=`${label[calMonth]} ${calYear}`;
+  const dhDiv=document.getElementById('calDaysHdr');
+  dhDiv.innerHTML=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>`<div class="cal-dh">${d}</div>`).join('');
+  const grid=document.getElementById('calGrid');
+  grid.innerHTML='';
+  const first=new Date(calYear,calMonth,1);
+  let startDow=first.getDay(); if(startDow===0)startDow=7;
+  const daysInMonth=new Date(calYear,calMonth+1,0).getDate();
+  const prevDays=new Date(calYear,calMonth,0).getDate();
+  const cells=[];
+  for(let i=startDow-1;i>0;i--) cells.push({day:prevDays-i+1,cur:false});
+  for(let i=1;i<=daysInMonth;i++) cells.push({day:i,cur:true});
+  while(cells.length%7!==0) cells.push({day:cells.length-daysInMonth-startDow+2,cur:false});
+
+  cells.forEach(c=>{
+    const ds=c.cur?`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(c.day).padStart(2,'0')}`:null;
+    const isToday=ds===today();
+    const locked=ds&&isDateLocked(ds);
+    const todRoster=ds?DB.roster.filter(r=>r.date===ds):[];
+    const todLeaves=ds?DB.leaveRequests.filter(r=>r.leaveDate===ds&&r.status==='approved'):[];
+
+    const chipsA=todRoster.filter(r=>r.shift==='A').length;
+    const chipsB=todRoster.filter(r=>r.shift==='B').length;
+    const chipsC=todRoster.filter(r=>r.shift==='C').length;
+
+    let chips='';
+    if(locked) chips+=`<div class="cal-chip locked-day">🔒 Locked</div>`;
+    if(chipsA) chips+=`<div class="cal-chip A">A: ${chipsA} staff</div>`;
+    if(chipsB) chips+=`<div class="cal-chip B">B: ${chipsB} staff</div>`;
+    if(chipsC) chips+=`<div class="cal-chip C">C: ${chipsC} staff</div>`;
+    if(todLeaves.length) chips+=`<div class="cal-chip leave">${todLeaves.length} leave</div>`;
+
+    const lockBtn=ds&&c.cur?`<button class="lock-btn" onclick="toggleDayLock('${ds}',event)">${locked?'🔓 Unlock':'🔒 Lock'}</button>`:'';
+
+    grid.innerHTML+=`<div class="cal-day${isToday?' today':''}${locked?' locked':''}${!c.cur?' other-month':''}" ${ds?`onclick="calDayClick('${ds}')"`:''}>
+      <div class="cal-dn">${c.day}</div>
+      ${locked?`<div class="cal-lock-icon">🔒</div>`:''}
+      <div class="cal-chips">${chips}</div>
+      ${lockBtn}
+    </div>`;
+  });
+}
+
+function calDayClick(ds){
+  openModal('assignMod');
+  document.getElementById('as-date').value=ds;
+}
+
+function toggleDayLock(ds,ev){
+  ev.stopPropagation();
+  if(isDateLocked(ds)){
+    DB.lockedRanges=DB.lockedRanges.filter(r=>!(ds>=r.from&&ds<=r.to&&r.from===r.to));
+    toast('Day unlocked','ok');
+  } else {
+    DB.lockedRanges.push({id:'LK'+Date.now(),from:ds,to:ds,reason:'Admin locked',addedOn:today()});
+    toast('Day locked — staff cannot request leave','warn');
+  }
+  renderCalendar(); updateStats();
+}
+
+function lockMonth(){
+  const from=`${calYear}-${String(calMonth+1).padStart(2,'0')}-01`;
+  const lastDay=new Date(calYear,calMonth+1,0).getDate();
+  const to=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${lastDay}`;
+  DB.lockedRanges.push({id:'LK'+Date.now(),from,to,reason:'Full month lock',addedOn:today()});
+  toast('Entire month locked','warn'); renderCalendar(); updateStats();
+}
+function unlockMonth(){
+  const m=String(calMonth+1).padStart(2,'0');
+  DB.lockedRanges=DB.lockedRanges.filter(r=>!r.from.startsWith(`${calYear}-${m}`));
+  toast('Month unlocked'); renderCalendar(); updateStats();
+}
+
+// ═══ LEAVE REQUESTS ═══
+function renderLeaves(){
+  const filter=document.getElementById('lv-filter')?.value||'';
+  let reqs=[...DB.leaveRequests].filter(r=>!filter||r.status===filter).sort((a,b)=>a.submittedOn<b.submittedOn?1:-1);
+  const div=document.getElementById('leavesList'); div.innerHTML='';
+  if(!reqs.length){div.innerHTML=`<div class="empty"><div class="ei">📭</div>No leave requests found.</div>`;return;}
+  reqs.forEach(lr=>{
+    const emp=getEmp(lr.empId);
+    const repl=getEmp(lr.replacementEmpId);
+    const rEntry=DB.roster.find(r=>r.empId===lr.empId&&r.date===lr.leaveDate);
+    const stag=lr.status==='pending'?'pending-tag':lr.status==='approved'?'approved-tag':'rejected-tag';
+    const locked=isDateLocked(lr.leaveDate);
+    div.innerHTML+=`<div class="leave-card">
+      <div class="leave-card-top">
+        <div>
+          <div class="emp-nm" style="font-size:15px">${emp?.name||'Unknown'} <span class="emp-id">${lr.empId}</span></div>
+          <div class="emp-rl" style="margin-top:3px">${emp?.dept||''} · ${emp?.role||''}</div>
+        </div>
+        <div class="leave-card-acts">
+          <span class="${stag}">${lr.status.toUpperCase()}</span>
+          ${lr.status==='pending'?`
+            <button class="btn btn-green btn-sm" onclick="decideLeave('${lr.id}','approved')">✓ Approve</button>
+            <button class="btn btn-red btn-sm" onclick="decideLeave('${lr.id}','rejected')">✕ Reject</button>
+            <button class="btn btn-ghost btn-sm" onclick="viewLeave('${lr.id}')">Details</button>
+          `:`<button class="btn btn-ghost btn-sm" onclick="viewLeave('${lr.id}')">View</button>`}
+        </div>
+      </div>
+      <div class="leave-info-grid">
+        <div class="li-item"><div class="li-lbl">Leave Date</div><div class="li-val">${lr.leaveDate}${locked?' 🔒':''}</div></div>
+        <div class="li-item"><div class="li-lbl">Submitted</div><div class="li-val">${lr.submittedOn}</div></div>
+        <div class="li-item"><div class="li-lbl">Shift to Cover</div><div class="li-val"><span class="stag ${rEntry?.shift||'A'}">${rEntry?.shift||'—'}</span></div></div>
+        <div class="li-item"><div class="li-lbl">Advance Notice</div><div class="li-val">${daysDiff(lr.submittedOn,lr.leaveDate)} days</div></div>
+      </div>
+      ${repl?`<div class="replacement-badge">✅ Replacement proposed: <b>${repl.name}</b> (${repl.dept}) — ${repl.role}</div>`:'<div class="warn-box" style="margin-top:8px;margin-bottom:0">⚠ No replacement proposed by staff.</div>'}
+      ${lr.reason?`<div style="font-size:12px;color:var(--txt2);margin-top:8px">Reason: ${lr.reason}</div>`:''}
+      ${lr.adminNote?`<div style="font-size:12px;color:var(--orange);margin-top:4px">Admin note: ${lr.adminNote}</div>`:''}
+    </div>`;
+  });
+}
+
+function daysDiff(from,to){
+  const a=new Date(from),b=new Date(to);
+  return Math.round((b-a)/86400000);
+}
+
+function decideLeave(id,decision){
+  const lr=DB.leaveRequests.find(r=>r.id===id); if(!lr)return;
+  lr.status=decision;
+  if(decision==='approved'){
+    // Mark the roster entry
+    const rEntry=DB.roster.find(r=>r.empId===lr.empId&&r.date===lr.leaveDate);
+    if(rEntry) rEntry.status='approved-leave';
+    // Assign replacement
+    if(lr.replacementEmpId){
+      const rRentry=DB.roster.find(r=>r.empId===lr.replacementEmpId&&r.date===lr.leaveDate);
+      if(rRentry) rRentry.status='replacement';
+    }
+    toast('Leave approved ✓','ok');
+  } else {
+    toast('Leave rejected','err');
+  }
+  afterUpdateLeave(lr);
+  renderLeaves(); updateStats();
+}
+
+function viewLeave(id){
+  const lr=DB.leaveRequests.find(r=>r.id===id); if(!lr)return;
+  const emp=getEmp(lr.empId);
+  const repl=getEmp(lr.replacementEmpId);
+  const rEntry=DB.roster.find(r=>r.empId===lr.empId&&r.date===lr.leaveDate);
+  document.getElementById('leaveModBody').innerHTML=`
+    <div class="fr" style="margin-bottom:12px">
+      <div class="fg"><label class="fl">Staff</label><div class="fc" style="cursor:default">${emp?.name} (${lr.empId})</div></div>
+      <div class="fg"><label class="fl">Status</label><div class="fc" style="cursor:default">${lr.status.toUpperCase()}</div></div>
+    </div>
+    <div class="fr" style="margin-bottom:12px">
+      <div class="fg"><label class="fl">Leave Date</label><div class="fc" style="cursor:default">${lr.leaveDate}</div></div>
+      <div class="fg"><label class="fl">Shift</label><div class="fc" style="cursor:default">${rEntry?.shift||'—'} (${SHIFTS[rEntry?.shift||'A']?.time})</div></div>
+    </div>
+    <div class="fg" style="margin-bottom:12px"><label class="fl">Reason</label><div class="fc" style="cursor:default">${lr.reason||'—'}</div></div>
+    <div class="fg" style="margin-bottom:12px"><label class="fl">Replacement</label><div class="fc" style="cursor:default">${repl?repl.name+' ('+repl.dept+')':'None proposed'}</div></div>
+    <div class="fg"><label class="fl">Admin Note</label><input class="fc" id="mod-note" value="${lr.adminNote||''}" placeholder="Optional note to staff…"></div>
+  `;
+  document.getElementById('leaveModFoot').innerHTML=lr.status==='pending'?`
+    <button class="btn btn-ghost" onclick="closeModal('leaveMod')">Close</button>
+    <button class="btn btn-red" onclick="saveNoteDecide('${id}','rejected')">✕ Reject</button>
+    <button class="btn btn-green" onclick="saveNoteDecide('${id}','approved')">✓ Approve</button>
+  `:`<button class="btn btn-ghost" onclick="closeModal('leaveMod')">Close</button>
+    <button class="btn btn-acc" onclick="saveNote('${id}')">Save Note</button>`;
+  openModal('leaveMod');
+}
+
+function saveNoteDecide(id,dec){
+  const lr=DB.leaveRequests.find(r=>r.id===id);
+  if(lr) lr.adminNote=document.getElementById('mod-note').value;
+  closeModal('leaveMod'); decideLeave(id,dec);
+}
+function saveNote(id){
+  const lr=DB.leaveRequests.find(r=>r.id===id);
+  if(lr) lr.adminNote=document.getElementById('mod-note').value;
+  closeModal('leaveMod'); toast('Note saved','ok');
+}
+
+// ═══ LOCK DAYS ═══
+function renderLockDays(){
+  const list=document.getElementById('lockedDatesList');
+  if(!DB.lockedRanges.length){list.innerHTML=`<div style="color:var(--txt3);font-size:12px;font-family:'DM Mono',monospace">No dates locked currently.</div>`;} else {
+    list.innerHTML=DB.lockedRanges.map(r=>`
+      <div class="locked-date-pill">
+        🔒 ${r.from===r.to?r.from:`${r.from} → ${r.to}`}
+        ${r.reason?`<span style="opacity:.7;font-size:10px">(${r.reason})</span>`:''}
+        <button onclick="removeLock('${r.id}')">✕</button>
+      </div>`).join('');
+  }
+  const tb=document.getElementById('lockHistTbody'); tb.innerHTML='';
+  DB.lockedRanges.forEach(r=>{
+    const s=new Date(r.from),e=new Date(r.to);
+    const days=Math.round((e-s)/86400000)+1;
+    tb.innerHTML+=`<tr>
+      <td style="font-family:'DM Mono',monospace;font-size:12px">${r.from}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:12px">${r.to}</td>
+      <td>${r.reason||'—'}</td>
+      <td><span class="locked-tag">${days} day${days>1?'s':''}</span></td>
+      <td><button class="btn btn-ghost btn-sm" onclick="removeLock('${r.id}')">Remove</button></td>
+    </tr>`;
+  });
+}
+
+function addLock(){
+  const from=document.getElementById('lockFrom').value;
+  const to=document.getElementById('lockTo').value||from;
+  const reason=document.getElementById('lockReason').value;
+  if(!from){toast('Select a from date','err');return;}
+  if(to<from){toast('End date must be ≥ start date','err');return;}
+  const newLk={id:'LK'+Date.now(),from,to,reason,addedOn:today()};
+  DB.lockedRanges.push(newLk);
+  afterAddLock(newLk);
+  toast('Dates locked — staff cannot request leave','warn');
+  renderLockDays(); updateStats();
+  document.getElementById('lockFrom').value='';
+  document.getElementById('lockTo').value='';
+  document.getElementById('lockReason').value='';
+}
+
+function removeLock(id){
+  afterDeleteLock(id);
+  DB.lockedRanges=DB.lockedRanges.filter(r=>r.id!==id);
+  toast('Lock removed'); renderLockDays(); updateStats();
+}
+
+// ═══ STAFF TABLE ═══
+function renderStaff(){
+  const tb=document.getElementById('staffTbody'); tb.innerHTML='';
+  DB.employees.forEach(e=>{
+    tb.innerHTML+=`<tr>
+      <td><span class="emp-id">${e.id}</span></td>
+      <td><div class="emp-nm">${e.name}</div></td>
+      <td><span class="dtag">${e.dept}</span></td>
+      <td class="emp-rl">${e.role}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:12px">${e.contact}</td>
+      <td><span class="stag A" style="letter-spacing:3px">${e.pin}</span></td>
+      <td>
+        <button class="btn btn-ghost btn-sm" onclick="resetPin('${e.id}')">Reset PIN</button>
+        <button class="btn btn-red btn-sm" onclick="removeStaff('${e.id}')">Remove</button>
+      </td>
+    </tr>`;
+  });
+}
+
+function resetPin(id){
+  const e=getEmp(id); if(!e)return;
+  const np=prompt(`New 4-digit PIN for ${e.name}:`)?.trim();
+  if(!np||np.length!==4||isNaN(np)){toast('Invalid PIN','err');return;}
+  e.pin=np; renderStaff(); toast('PIN updated','ok');
+}
+
+function removeStaff(id){
+  if(!confirm('Remove this staff member from the system?'))return;
+  DB.employees=DB.employees.filter(e=>e.id!==id);
+  DB.roster=DB.roster.filter(r=>r.empId!==id);
+  renderStaff(); updateStats(); toast('Staff removed','warn');
+}
+
+// ═══ ADD EMPLOYEE ═══
+function addEmployee(){
+  const name=document.getElementById('en').value.trim();
+  const id=document.getElementById('eid').value.trim();
+  const pin=document.getElementById('epin').value.trim();
+  if(!name||!id){toast('Name and ID required','err');return;}
+  if(DB.employees.find(e=>e.id===id)){toast('ID already exists','err');return;}
+  if(pin.length!==4||isNaN(pin)){toast('PIN must be 4 digits','err');return;}
+  DB.employees.push({
+    id,name,role:document.getElementById('erole').value,dept:document.getElementById('edept').value,
+    contact:document.getElementById('ephone').value,pin,
+    preferredShift:document.getElementById('epshift').value,joinDate:document.getElementById('ejoin').value
+  });
+  populateDropdowns(); closeModal('addEmpMod'); updateStats();
+  afterAddEmployee(DB.employees[DB.employees.length-1]);
+  toast(`${name} added`,'ok');
+}
+
+// ═══ ASSIGN SHIFT ═══
+function assignShift(){
+  const empId=document.getElementById('as-emp').value;
+  const date=document.getElementById('as-date').value;
+  const shift=document.getElementById('as-shift').value;
+  const site=document.getElementById('as-site').value;
+  const notes=document.getElementById('as-notes').value;
+  if(!empId||!date){toast('Staff and date required','err');return;}
+  const existing=DB.roster.find(r=>r.empId===empId&&r.date===date);
+  if(existing){existing.shift=shift;existing.site=site;existing.notes=notes;}
+  else DB.roster.push({id:`R${Date.now()}`,empId,date,shift,site,notes,status:'scheduled'});
+  const re=existing||DB.roster[DB.roster.length-1]; if(existing){afterUpdateRoster(re);}else{afterAddRoster(re);}
+  closeModal('assignMod'); renderDash(); toast('Shift assigned','ok');
+}
+
+function prefillAssign(rid){
+  const r=DB.roster.find(x=>x.id===rid); if(!r)return;
+  openModal('assignMod');
+  document.getElementById('as-emp').value=r.empId;
+  document.getElementById('as-date').value=r.date;
+  document.getElementById('as-shift').value=r.shift;
+  document.getElementById('as-site').value=r.site;
+  document.getElementById('as-notes').value=r.notes;
+}
+
+function deleteEntry(rid){
+  if(!confirm('Remove this shift entry?'))return;
+  afterDeleteRoster(rid);
+  DB.roster=DB.roster.filter(r=>r.id!==rid);
+  renderDash(); toast('Entry removed','warn');
+}
+
+// ═══ MODALS ═══
+function openModal(id){
+  document.getElementById(id).classList.add('open');
+  if(id==='assignMod'){
+    populateDropdowns();
+    if(!document.getElementById('as-date').value) document.getElementById('as-date').value=today();
+  }
+}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+document.querySelectorAll('.overlay').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open');}));
+
+// ═══ DROPDOWNS ═══
+function populateDropdowns(){
+  const sel=document.getElementById('as-emp');
+  if(sel) sel.innerHTML=DB.employees.map(e=>`<option value="${e.id}">${e.name} (${e.dept})</option>`).join('');
+  DEPTS.forEach(d=>{
+    ['dd-dept','r-dept'].forEach(id=>{
+      const el=document.getElementById(id);
+      if(el&&!el.querySelector(`option[value="${d}"]`)) el.innerHTML+=`<option value="${d}">${d}</option>`;
+    });
+  });
+}
+
+// ═══ EXPORT ═══
+function exportCSV(){
+  const rows=[['ID','Name','Dept','Role','Shift','Time','Site','Date','Status']];
+  DB.roster.forEach(r=>{const e=getEmp(r.empId);if(e)rows.push([e.id,e.name,e.dept,e.role,r.shift,SHIFTS[r.shift].time,r.site,r.date,r.status]);});
+  const csv=rows.map(r=>r.map(c=>`"${c}"`).join(',')).join('\n');
+  const a=document.createElement('a');a.href='data:text/csv,'+encodeURIComponent(csv);a.download='roster_'+today()+'.csv';a.click();
+  toast('CSV exported','ok');
+}
+
+// ═══ CLOCK ═══
+function tick(){
+  const n=new Date();
+  document.getElementById('clock').textContent=n.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+setInterval(tick,1000); tick();
+
+// ═══ SETTINGS ═══
+let ADMIN_PIN = '0000';
+DB.staffLeaveBlocks = []; // [{id, empId, from, to}]
+DB.settings = {
+  advanceDays: 3,
+  labName: 'Ankuram Labs',
+  labCode: '',
+  city: '',
+  contact: ''
+};
+
+// -- Sub-tab switcher --
+function stab(id){
+  document.querySelectorAll('.stab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.settings-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelector(`.stab[onclick="stab('${id}')"]`).classList.add('active');
+  document.getElementById('sp-'+id).classList.add('active');
+  if(id==='staff-mgmt') renderSettingsStaff();
+  if(id==='shift-config') renderShiftConfig();
+  if(id==='leave-blocks') renderLeaveBlocks();
+  if(id==='general') renderGeneral();
+}
+
+// -- Settings Staff List --
+function renderSettingsStaff(){
+  const search=(document.getElementById('s-search')?.value||'').toLowerCase();
+  const dept=document.getElementById('s-dept-filter')?.value||'';
+  const list=document.getElementById('settingsStaffList');
+  const emps=DB.employees.filter(e=>{
+    if(dept&&e.dept!==dept)return false;
+    if(search&&!e.name.toLowerCase().includes(search)&&!e.id.toLowerCase().includes(search))return false;
+    return true;
+  });
+  if(!emps.length){list.innerHTML='<div style="color:var(--txt3);font-size:13px;padding:20px 0">No staff found.</div>';return;}
+  list.innerHTML='<div class="tbl-scroll"><table class="tbl"><thead><tr><th>ID</th><th>Name</th><th>Dept</th><th>Role</th><th>Contact</th><th>PIN</th><th>Pref. Shift</th><th>Actions</th></tr></thead><tbody>'+
+    emps.map(e=>`<tr>
+      <td><span class="emp-id">${e.id}</span></td>
+      <td><div class="emp-nm">${e.name}</div></td>
+      <td><span class="dtag">${e.dept}</span></td>
+      <td class="emp-rl">${e.role}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:12px">${e.contact}</td>
+      <td><span class="stag A" style="letter-spacing:3px">${e.pin}</span></td>
+      <td><span class="stag ${e.preferredShift}">${e.preferredShift}</span></td>
+      <td style="display:flex;gap:6px">
+        <button class="btn btn-ghost btn-sm" onclick="openEditStaff('${e.id}')">✏ Edit</button>
+        <button class="btn btn-red btn-sm" onclick="removeStaffSettings('${e.id}')">✕ Remove</button>
+      </td>
+    </tr>`).join('')+
+  '</tbody></table></div>';
+  // populate dept filter
+  const df=document.getElementById('s-dept-filter');
+  DEPTS.forEach(d=>{if(!df.querySelector(`option[value="${d}"]`))df.innerHTML+=`<option value="${d}">${d}</option>`;});
+}
+
+function settingsAddEmployee(){
+  const name=document.getElementById('s-en').value.trim();
+  const id=document.getElementById('s-eid').value.trim();
+  const pin=document.getElementById('s-epin').value.trim();
+  if(!name||!id){toast('Name and ID required','err');return;}
+  if(DB.employees.find(e=>e.id===id)){toast('ID already exists','err');return;}
+  if(pin.length!==4||isNaN(pin)){toast('PIN must be 4 digits','err');return;}
+  DB.employees.push({id,name,role:document.getElementById('s-erole').value,dept:document.getElementById('s-edept').value,
+    contact:document.getElementById('s-ephone').value,pin,preferredShift:document.getElementById('s-epshift').value,
+    joinDate:document.getElementById('s-ejoin').value});
+  ['s-en','s-eid','s-erole','s-ephone','s-epin'].forEach(i=>document.getElementById(i).value='');
+  const newEmp=DB.employees[DB.employees.length-1];
+  afterAddEmployee(newEmp);
+  populateDropdowns(); renderSettingsStaff(); updateStats();
+  toast(`${name} added`,'ok');
+}
+
+function openEditStaff(id){
+  const e=getEmp(id); if(!e)return;
+  document.getElementById('es-name').value=e.name;
+  document.getElementById('es-id').value=e.id;
+  document.getElementById('es-dept').value=e.dept;
+  document.getElementById('es-role').value=e.role;
+  document.getElementById('es-contact').value=e.contact;
+  document.getElementById('es-pin').value=e.pin;
+  document.getElementById('es-pshift').value=e.preferredShift;
+  document.getElementById('es-join').value=e.joinDate;
+  document.getElementById('editStaffMod').dataset.editId=id;
+  openModal('editStaffMod');
+}
+
+function saveEditStaff(){
+  const id=document.getElementById('editStaffMod').dataset.editId;
+  const e=getEmp(id); if(!e)return;
+  const newPin=document.getElementById('es-pin').value.trim();
+  if(newPin.length!==4||isNaN(newPin)){toast('PIN must be 4 digits','err');return;}
+  e.name=document.getElementById('es-name').value.trim();
+  e.dept=document.getElementById('es-dept').value;
+  e.role=document.getElementById('es-role').value;
+  e.contact=document.getElementById('es-contact').value;
+  e.pin=newPin;
+  e.preferredShift=document.getElementById('es-pshift').value;
+  e.joinDate=document.getElementById('es-join').value;
+  afterUpdateEmployee(e);
+  closeModal('editStaffMod'); renderSettingsStaff(); renderStaff(); populateDropdowns();
+  toast('Staff updated','ok');
+}
+
+function deleteStaffFromModal(){
+  const id=document.getElementById('editStaffMod').dataset.editId;
+  if(!confirm('Permanently remove this staff member?'))return;
+  DB.employees=DB.employees.filter(e=>e.id!==id);
+  DB.roster=DB.roster.filter(r=>r.empId!==id);
+  afterDeleteEmployee(id);
+  closeModal('editStaffMod'); renderSettingsStaff(); renderStaff(); updateStats();
+  toast('Staff removed','warn');
+}
+
+function removeStaffSettings(id){
+  if(!confirm('Permanently remove this staff member?'))return;
+  afterDeleteEmployee(id);
+  DB.employees=DB.employees.filter(e=>e.id!==id);
+  DB.roster=DB.roster.filter(r=>r.empId!==id);
+  renderSettingsStaff(); renderStaff(); updateStats();
+  toast('Staff removed','warn');
+}
+
+// -- Shift Config --
+const DEFAULT_SHIFTS={A:{label:'Shift A',start:'07:00',end:'16:00'},B:{label:'Shift B',start:'14:00',end:'23:00'},C:{label:'Shift C',start:'22:00',end:'07:00'}};
+let shiftConfig=JSON.parse(JSON.stringify(DEFAULT_SHIFTS));
+
+function calcHours(start,end){
+  const [sh,sm]=start.split(':').map(Number);
+  const [eh,em]=end.split(':').map(Number);
+  let mins=(eh*60+em)-(sh*60+sm);
+  if(mins<=0)mins+=1440;
+  return Math.round(mins/60*10)/10;
+}
+
+function renderShiftConfig(){
+  const g=document.getElementById('shiftConfigGrid');
+  const dotClass={A:'shift-dot-a',B:'shift-dot-b',C:'shift-dot-c'};
+  g.innerHTML=['A','B','C'].map(s=>`
+    <div class="shift-card">
+      <div class="shift-card-label"><span class="${dotClass[s]}"></span>Shift ${s}</div>
+      <div class="fg" style="margin-bottom:8px"><label class="fl">Label / Name</label>
+        <input class="tc2" id="sc-label-${s}" value="${shiftConfig[s].label}" placeholder="Shift ${s}">
+      </div>
+      <div class="time-row"><label>Start</label><input type="time" class="tc2" id="sc-start-${s}" value="${shiftConfig[s].start}" oninput="updateHoursBadge('${s}')"></div>
+      <div class="time-row"><label>End</label><input type="time" class="tc2" id="sc-end-${s}" value="${shiftConfig[s].end}" oninput="updateHoursBadge('${s}')"></div>
+      <div class="hours-badge" id="sc-hrs-${s}">${calcHours(shiftConfig[s].start,shiftConfig[s].end)} hrs</div>
+    </div>`).join('');
+}
+
+function updateHoursBadge(s){
+  const start=document.getElementById(`sc-start-${s}`).value;
+  const end=document.getElementById(`sc-end-${s}`).value;
+  if(start&&end) document.getElementById(`sc-hrs-${s}`).textContent=calcHours(start,end)+' hrs';
+}
+
+function saveShiftConfig(){
+  ['A','B','C'].forEach(s=>{
+    const start=document.getElementById(`sc-start-${s}`).value;
+    const end=document.getElementById(`sc-end-${s}`).value;
+    const label=document.getElementById(`sc-label-${s}`).value||`Shift ${s}`;
+    if(!start||!end){toast(`Enter valid times for Shift ${s}`,'err');return;}
+    shiftConfig[s]={label,start,end};
+    SHIFTS[s]={label,time:`${start}–${end}`};
+  });
+  toast('Shift settings saved','ok');
+  renderDash();
+}
+
+function resetShiftConfig(){
+  shiftConfig=JSON.parse(JSON.stringify(DEFAULT_SHIFTS));
+  SHIFTS.A={label:'Shift A',time:'07:00–16:00'};
+  SHIFTS.B={label:'Shift B',time:'14:00–23:00'};
+  SHIFTS.C={label:'Shift C',time:'22:00–07:00 (+1)'};
+  renderShiftConfig();
+  toast('Reset to defaults');
+}
+
+function saveAdvanceDays(){
+  const v=parseInt(document.getElementById('advanceDays').value);
+  if(!v||v<1){toast('Must be at least 1 day','err');return;}
+  DB.settings.advanceDays=v;
+  toast(`Advance notice set to ${v} days`,'ok');
+}
+
+// -- Staff Leave Blocks --
+function renderLeaveBlocks(){
+  // Populate staff select
+  const sel=document.getElementById('lb-emp');
+  sel.innerHTML='<option value="">— Select Staff —</option>'+DB.employees.map(e=>`<option value="${e.id}">${e.name} (${e.dept})</option>`).join('');
+
+  const list=document.getElementById('staffBlocksList');
+  if(!DB.staffLeaveBlocks.length){
+    list.innerHTML=`<div style="color:var(--txt3);font-size:13px;padding:10px 0;font-family:'DM Mono',monospace">No staff-specific leave blocks set.</div>`;
+    return;
+  }
+  const grouped={};
+  DB.staffLeaveBlocks.forEach(b=>{
+    if(!grouped[b.empId])grouped[b.empId]=[];
+    grouped[b.empId].push(b);
+  });
+  list.innerHTML=Object.entries(grouped).map(([empId,blocks])=>{
+    const emp=getEmp(empId);
+    return `<div class="sblock-row">
+      <div class="sblock-info">
+        <div class="sblock-name">${emp?.name||empId}</div>
+        <div class="sblock-dept">${emp?.dept||''} · ${emp?.role||''}</div>
+        <div class="sblock-dates">${blocks.map(b=>`
+          <div class="sblock-pill">
+            🚫 ${b.from===b.to?b.from:`${b.from} → ${b.to}`}
+            <button onclick="removeStaffBlock('${b.id}')">✕</button>
+          </div>`).join('')}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function addStaffLeaveBlock(){
+  const empId=document.getElementById('lb-emp').value;
+  const from=document.getElementById('lb-from').value;
+  const to=document.getElementById('lb-to').value||from;
+  if(!empId){toast('Select a staff member','err');return;}
+  if(!from){toast('Select a from date','err');return;}
+  if(to<from){toast('End date must be ≥ start date','err');return;}
+  const newBlk={id:'SB'+Date.now(),empId,from,to};
+  DB.staffLeaveBlocks.push(newBlk);
+  afterAddStaffBlock(newBlk);
+  toast(`Leave blocked for ${getEmp(empId)?.name}`,'warn');
+  document.getElementById('lb-from').value='';
+  document.getElementById('lb-to').value='';
+  renderLeaveBlocks();
+}
+
+function removeStaffBlock(id){
+  afterDeleteStaffBlock(id);
+  DB.staffLeaveBlocks=DB.staffLeaveBlocks.filter(b=>b.id!==id);
+  renderLeaveBlocks();
+  toast('Block removed');
+}
+
+// -- General Settings --
+function renderGeneral(){
+  document.getElementById('g-labname').value=DB.settings.labName||'Ankuram Labs';
+  // Update sync display
+  const urlEl=document.getElementById('gasUrlDisplay');
+  const url=localStorage.getItem('gasUrl')||'';
+  if(urlEl) urlEl.textContent=url?'Connected: '+url.slice(0,60)+'…':'Not connected — click Configure Connection';
+  const si2=document.getElementById('syncIndicator2');
+  if(si2) si2.textContent='Status: '+(url?syncStatus:'not configured');
+  document.getElementById('g-labcode').value=DB.settings.labCode||'';
+  document.getElementById('g-city').value=DB.settings.city||'';
+  document.getElementById('g-contact').value=DB.settings.contact||'';
+  document.getElementById('advanceDays').value=DB.settings.advanceDays||3;
+  renderDeptList();
+}
+
+function saveGeneral(){
+  DB.settings.labName=document.getElementById('g-labname').value.trim()||'Ankuram Labs';
+  DB.settings.labCode=document.getElementById('g-labcode').value.trim();
+  DB.settings.city=document.getElementById('g-city').value.trim();
+  DB.settings.contact=document.getElementById('g-contact').value.trim();
+  toast('Lab info saved','ok');
+}
+
+function changeAdminPin(){
+  const old=document.getElementById('g-oldpin').value;
+  const n=document.getElementById('g-newpin').value;
+  const c=document.getElementById('g-confirmpin').value;
+  if(old!==ADMIN_PIN){toast('Current PIN incorrect','err');return;}
+  if(n.length!==4||isNaN(n)){toast('New PIN must be 4 digits','err');return;}
+  if(n!==c){toast('PINs do not match','err');return;}
+  ADMIN_PIN=n;
+  ['g-oldpin','g-newpin','g-confirmpin'].forEach(i=>document.getElementById(i).value='');
+  toast('Admin PIN changed','ok');
+}
+
+function renderDeptList(){
+  const d=document.getElementById('deptList');
+  d.innerHTML=DEPTS.map((dept,i)=>`
+    <div style="background:var(--bg3);border:1px solid var(--bdr);border-radius:var(--r);padding:5px 10px 5px 12px;font-size:13px;display:flex;align-items:center;gap:8px">
+      ${dept}
+      <button onclick="removeDept(${i})" style="background:none;border:none;color:var(--txt3);cursor:pointer;font-size:14px;line-height:1" title="Remove">✕</button>
+    </div>`).join('');
+}
+
+function addDept(){
+  const v=document.getElementById('g-newdept').value.trim();
+  if(!v){toast('Enter department name','err');return;}
+  if(DEPTS.includes(v)){toast('Already exists','warn');return;}
+  DEPTS.push(v);
+  document.getElementById('g-newdept').value='';
+  renderDeptList();
+  populateDropdowns();
+  toast(`"${v}" added`,'ok');
+}
+
+function removeDept(i){
+  const d=DEPTS[i];
+  if(DB.employees.some(e=>e.dept===d)){toast(`Cannot remove — staff assigned to ${d}`,'err');return;}
+  DEPTS.splice(i,1);
+  renderDeptList();
+  toast(`"${d}" removed`,'warn');
+}
+
+// Danger zone
+function clearAllRoster(){if(!confirm('Delete ALL roster entries? This cannot be undone.'))return;DB.roster=[];toast('All roster entries cleared','err');}
+function clearAllLeaves(){if(!confirm('Delete ALL leave requests?'))return;DB.leaveRequests=[];updateStats();toast('All leave requests cleared','err');}
+function clearAllLocks(){if(!confirm('Remove ALL date locks?'))return;DB.lockedRanges=[];updateStats();toast('All locks removed','warn');}
+
+// ═══ INIT ═══
+async function init() {
+  // Try to load from Google Sheets; fall back to seed data
+  const loaded = await loadFromSheets();
+  if (!loaded) {
+    seed(); // use demo data if no API configured
+    setSyncStatus(GAS_URL ? 'error' : 'offline');
+  }
+  populateDropdowns(); updateStats(); renderDash();
+}
+init();
+
+</script>
+<!-- Loader Overlay -->
+<div id="loaderOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;align-items:center;justify-content:center;flex-direction:column;gap:16px">
+  <div style="width:40px;height:40px;border:3px solid var(--bdr);border-top-color:var(--acc);border-radius:50%;animation:spin .8s linear infinite"></div>
+  <div id="loaderMsg" style="font-family:'DM Mono',monospace;font-size:13px;color:var(--txt2)">Please wait…</div>
+</div>
+<style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+
+<!-- Connect to Google Sheets Modal (opened from Settings) -->
+<div class="overlay" id="connectMod">
+  <div class="modal">
+    <div class="mh"><div class="mt">🔗 Connect Google Sheets</div><button class="xb" onclick="closeModal('connectMod')">✕</button></div>
+    <div class="mb">
+      <div style="background:rgba(232,197,71,.07);border:1px solid rgba(232,197,71,.2);border-radius:var(--r);padding:14px;margin-bottom:16px;font-size:12px;line-height:1.7;color:var(--acc2)">
+        <b>How to connect:</b><br>
+        1. Open your Google Sheet → <b>Extensions → Apps Script</b><br>
+        2. Paste the contents of <b>gas.js</b> (provided) into Code.gs<br>
+        3. Click <b>Deploy → New Deployment → Web App</b><br>
+        4. Set "Who has access" to <b>Anyone</b> → Deploy<br>
+        5. Copy the <b>Web App URL</b> and paste it below
+      </div>
+      <div class="fg">
+        <label class="fl">Google Apps Script Web App URL</label>
+        <input class="fc" id="gasUrlInput" placeholder="https://script.google.com/macros/s/…/exec" value="">
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="btn btn-ghost btn-sm" onclick="initSheets()">① Create Sheets</button>
+        <button class="btn btn-ghost btn-sm" onclick="fullSync()">② Push All Data</button>
+        <button class="btn btn-ghost btn-sm" onclick="loadFromSheets()">③ Load from Sheets</button>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn btn-ghost" onclick="closeModal('connectMod')">Cancel</button>
+      <button class="btn btn-acc" onclick="saveGasUrl()">Save & Connect</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>

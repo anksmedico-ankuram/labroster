@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ankuram Labs — Staff Portal</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@600;700;800&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b0f1a;--bg2:#111726;--bg3:#171f32;--panel:#1b2236;--bdr:#232d44;--bdr2:#2c3856;
+  --acc:#22c97e;--acc2:#3ddea0;--acc-dim:#0a2a1c;
+  --blue:#4f8ef7;--red:#f04a58;--orange:#f5853a;--yellow:#e8c547;--purple:#9b7af5;
+  --txt:#dce4f5;--txt2:#6e7fa0;--txt3:#3a4562;
+  --r:10px;--r2:14px;--sh:0 8px 40px rgba(0,0,0,.5);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--txt);font-family:'Instrument Sans',sans-serif;font-size:14px;min-height:100vh;}
+
+/* LOGIN SCREEN */
+.login-screen{
+  display:flex;align-items:center;justify-content:center;
+  min-height:100vh;padding:20px;
+  background:radial-gradient(ellipse at 30% 50%, rgba(34,201,126,.06) 0%, transparent 60%),
+             radial-gradient(ellipse at 80% 20%, rgba(79,142,247,.05) 0%, transparent 50%),
+             var(--bg);
+}
+.login-card{
+  background:var(--panel);border:1px solid var(--bdr);border-radius:20px;
+  padding:40px;width:380px;text-align:center;box-shadow:var(--sh);
+}
+.login-logo{font-family:'Syne',sans-serif;font-size:28px;font-weight:800;margin-bottom:6px;}
+.login-logo em{color:var(--acc);font-style:normal;}
+.login-sub{color:var(--txt2);font-size:13px;margin-bottom:32px;}
+.login-label{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--txt2);text-transform:uppercase;margin-bottom:8px;text-align:left;}
+.login-input{
+  width:100%;background:var(--bg3);border:1px solid var(--bdr);color:var(--txt);
+  border-radius:var(--r);padding:12px 16px;font-size:15px;font-family:'Instrument Sans',sans-serif;
+  outline:none;margin-bottom:16px;transition:.15s;text-align:center;letter-spacing:4px;
+}
+.login-input:focus{border-color:var(--acc);}
+.login-select{
+  width:100%;background:var(--bg3);border:1px solid var(--bdr);color:var(--txt);
+  border-radius:var(--r);padding:12px 16px;font-size:14px;font-family:'Instrument Sans',sans-serif;
+  outline:none;margin-bottom:24px;
+}
+.login-btn{
+  width:100%;background:var(--acc);color:#020e07;border:none;border-radius:var(--r);
+  padding:13px;font-size:15px;font-weight:600;cursor:pointer;font-family:'Instrument Sans',sans-serif;
+  transition:.15s;
+}
+.login-btn:hover{background:var(--acc2);}
+.login-err{background:rgba(240,74,88,.1);border:1px solid rgba(240,74,88,.3);border-radius:var(--r);padding:10px;font-size:13px;color:var(--red);margin-top:12px;display:none;}
+
+/* APP SHELL */
+.app-shell{display:none;}
+header{
+  background:var(--bg2);border-bottom:1px solid var(--bdr);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 20px;height:56px;position:sticky;top:0;z-index:50;
+}
+.logo{font-family:'Syne',sans-serif;font-weight:800;font-size:16px;}
+.logo em{color:var(--acc);font-style:normal;}
+.staff-badge{
+  background:var(--acc-dim);border:1px solid rgba(34,201,126,.3);border-radius:6px;
+  padding:3px 10px;font-size:12px;color:var(--acc);font-family:'DM Mono',monospace;
+}
+.hdr-right{display:flex;gap:10px;align-items:center;}
+.logout-btn{background:transparent;border:1px solid var(--bdr);color:var(--txt2);padding:5px 12px;border-radius:var(--r);cursor:pointer;font-size:12px;font-family:'Instrument Sans',sans-serif;}
+.logout-btn:hover{border-color:var(--red);color:var(--red);}
+
+/* NAV TABS */
+.tabs{display:flex;background:var(--bg2);border-bottom:1px solid var(--bdr);}
+.tab{flex:1;text-align:center;padding:12px;cursor:pointer;font-size:13px;color:var(--txt2);border-bottom:2px solid transparent;transition:.15s;}
+.tab.active{color:var(--acc);border-bottom-color:var(--acc);}
+.tab:hover{color:var(--txt);}
+
+/* CONTENT */
+.content{padding:20px;max-width:800px;margin:0 auto;}
+.view{display:none;}
+.view.active{display:block;animation:fadeUp .2s ease;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* MY DUTY CARD */
+.today-card{
+  background:linear-gradient(135deg,rgba(34,201,126,.12) 0%,rgba(79,142,247,.06) 100%);
+  border:1px solid rgba(34,201,126,.25);border-radius:var(--r2);padding:22px;margin-bottom:18px;
+}
+.today-label{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--acc);text-transform:uppercase;margin-bottom:10px;}
+.today-shift{font-family:'Syne',sans-serif;font-size:32px;font-weight:800;}
+.today-time{font-family:'DM Mono',monospace;font-size:16px;color:var(--txt2);margin-top:4px;}
+.today-site{font-size:13px;color:var(--txt2);margin-top:8px;}
+.off-card{background:var(--bg3);border:1px solid var(--bdr);border-radius:var(--r2);padding:22px;text-align:center;color:var(--txt2);}
+
+/* WEEK TABLE */
+.week-title{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--txt3);margin-bottom:10px;}
+.week-strip{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:20px;}
+.wday{background:var(--panel);border:1px solid var(--bdr);border-radius:var(--r);padding:10px 6px;text-align:center;cursor:default;}
+.wday.today-wday{border-color:var(--acc);}
+.wday.locked-wday{border-color:rgba(240,74,88,.3);}
+.wd-name{font-family:'DM Mono',monospace;font-size:9px;color:var(--txt3);text-transform:uppercase;margin-bottom:4px;}
+.wd-num{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;margin-bottom:6px;}
+.wday.today-wday .wd-num{color:var(--acc);}
+.ws-tag{display:inline-block;padding:2px 7px;border-radius:4px;font-family:'DM Mono',monospace;font-size:10px;}
+.ws-tag.A{background:rgba(79,142,247,.15);color:#4f8ef7;}
+.ws-tag.B{background:rgba(34,201,126,.12);color:var(--acc);}
+.ws-tag.C{background:rgba(155,122,245,.15);color:var(--purple);}
+.ws-tag.OFF{background:var(--bg3);color:var(--txt3);}
+.ws-tag.locked{background:rgba(240,74,88,.1);color:var(--red);}
+
+/* LEAVE FORM */
+.leave-form{background:var(--panel);border:1px solid var(--bdr);border-radius:var(--r2);padding:20px;}
+.lf-title{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;margin-bottom:6px;}
+.lf-sub{font-size:12px;color:var(--txt2);margin-bottom:20px;line-height:1.6;}
+.fg{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;}
+.fl{font-size:10px;color:var(--txt2);text-transform:uppercase;letter-spacing:1px;font-family:'DM Mono',monospace;}
+.fc{background:var(--bg3);border:1px solid var(--bdr);color:var(--txt);border-radius:var(--r);padding:10px 14px;font-size:14px;font-family:'Instrument Sans',sans-serif;outline:none;width:100%;transition:.15s;}
+.fc:focus{border-color:var(--acc);}
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.submit-btn{width:100%;background:var(--acc);color:#020e07;border:none;border-radius:var(--r);padding:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:'Instrument Sans',sans-serif;transition:.15s;margin-top:4px;}
+.submit-btn:hover{background:var(--acc2);}
+.submit-btn:disabled{opacity:.4;cursor:not-allowed;}
+.info-box{background:rgba(79,142,247,.07);border:1px solid rgba(79,142,247,.2);border-radius:var(--r);padding:10px 14px;font-size:12px;color:var(--blue);margin-bottom:16px;line-height:1.6;}
+.warn-box{background:rgba(245,133,58,.07);border:1px solid rgba(245,133,58,.2);border-radius:var(--r);padding:10px 14px;font-size:12px;color:var(--orange);margin-bottom:16px;line-height:1.6;}
+.err-box{background:rgba(240,74,88,.07);border:1px solid rgba(240,74,88,.2);border-radius:var(--r);padding:10px 14px;font-size:12px;color:var(--red);margin-bottom:14px;display:none;}
+.ok-box{background:rgba(34,201,126,.07);border:1px solid rgba(34,201,126,.2);border-radius:var(--r);padding:10px 14px;font-size:12px;color:var(--acc);margin-bottom:14px;display:none;}
+
+/* MY REQUESTS */
+.req-card{background:var(--panel);border:1px solid var(--bdr);border-radius:var(--r);padding:16px;margin-bottom:10px;}
+.req-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.req-date{font-family:'DM Mono',monospace;font-size:13px;}
+.req-status-pending{background:rgba(245,133,58,.12);color:var(--orange);border:1px solid rgba(245,133,58,.3);padding:3px 10px;border-radius:5px;font-size:11px;font-family:'DM Mono',monospace;}
+.req-status-approved{background:rgba(34,201,126,.1);color:var(--acc);border:1px solid rgba(34,201,126,.25);padding:3px 10px;border-radius:5px;font-size:11px;font-family:'DM Mono',monospace;}
+.req-status-rejected{background:rgba(240,74,88,.1);color:var(--red);border:1px solid rgba(240,74,88,.25);padding:3px 10px;border-radius:5px;font-size:11px;font-family:'DM Mono',monospace;}
+.req-info{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
+.ri{background:var(--bg3);border-radius:8px;padding:8px 10px;}
+.ri-l{font-size:10px;color:var(--txt3);font-family:'DM Mono',monospace;margin-bottom:2px;}
+.ri-v{font-size:12px;color:var(--txt);}
+.req-note{margin-top:10px;font-size:12px;color:var(--orange);background:rgba(245,133,58,.07);border:1px solid rgba(245,133,58,.15);border-radius:6px;padding:8px 10px;}
+.empty{text-align:center;padding:40px 20px;color:var(--txt2);}
+.empty-i{font-size:32px;margin-bottom:8px;}
+
+/* TOAST */
+.tc{position:fixed;bottom:16px;right:16px;z-index:200;display:flex;flex-direction:column;gap:6px;}
+.toast{background:var(--panel);border:1px solid var(--acc);border-radius:var(--r);padding:10px 15px;font-size:13px;box-shadow:var(--sh);animation:fadeUp .2s ease;max-width:280px;}
+.toast.err{border-color:var(--red);}
+.toast.warn{border-color:var(--orange);}
+
+/* PROFILE */
+.profile-card{background:var(--panel);border:1px solid var(--bdr);border-radius:var(--r2);padding:20px;}
+.profile-top{display:flex;align-items:center;gap:16px;margin-bottom:20px;}
+.profile-avatar{width:56px;height:56px;border-radius:50%;background:var(--acc-dim);border:2px solid rgba(34,201,126,.3);display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-size:22px;font-weight:700;color:var(--acc);}
+.profile-name{font-family:'Syne',sans-serif;font-size:18px;font-weight:700;}
+.profile-role{font-size:12px;color:var(--txt2);margin-top:2px;}
+.profile-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.pg-item{background:var(--bg3);border-radius:var(--r);padding:12px;}
+.pg-label{font-size:10px;color:var(--txt3);font-family:'DM Mono',monospace;margin-bottom:4px;text-transform:uppercase;}
+.pg-val{font-size:13px;color:var(--txt);}
+</style>
+</head>
+<body>
+
+<!-- ═══ LOGIN SCREEN ═══ -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo">Lab<em>Roster</em></div>
+    <div style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:2px;color:var(--txt2);text-transform:uppercase;margin-bottom:4px;margin-top:-2px">Ankuram Labs</div>
+    <div class="login-sub">Staff Portal — Please sign in</div>
+
+    <div class="login-label">Enter Your 4-Digit PIN</div>
+    <input class="login-input" type="password" id="loginPin" maxlength="4" placeholder="••••" inputmode="numeric" autofocus>
+
+    <button class="login-btn" onclick="doLogin()">Sign In</button>
+    <div class="login-err" id="loginErr">Incorrect PIN. Please try again.</div>
+  </div>
+</div>
+
+<!-- ═══ APP SHELL ═══ -->
+<div class="app-shell" id="appShell">
+  <header>
+    <div style="display:flex;flex-direction:column;gap:1px">
+      <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--txt3);text-transform:uppercase">Ankuram Labs</div>
+      <div class="logo">Lab<em>Roster</em> <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--txt3);margin-left:6px">Staff Portal</span></div>
+    </div>
+    <div class="hdr-right">
+      <span id="staffSyncBadge" style="display:none;font-size:10px;font-family:'DM Mono',monospace;color:var(--acc);background:var(--acc-dim);border:1px solid rgba(34,201,126,.3);border-radius:4px;padding:2px 8px">☁ Sheets</span>
+      <span class="staff-badge" id="staffBadge">—</span>
+      <button class="logout-btn" onclick="logout()">Sign Out</button>
+    </div>
+  </header>
+
+  <div class="tabs">
+    <div class="tab active" onclick="tab('duty')">🔬 My Duty</div>
+    <div class="tab" onclick="tab('leave')">📩 Request Leave</div>
+    <div class="tab" onclick="tab('myrequests')">📋 My Requests</div>
+    <div class="tab" onclick="tab('profile')">👤 My Profile</div>
+  </div>
+
+  <div class="content">
+
+    <!-- MY DUTY -->
+    <div class="view active" id="view-duty">
+      <div id="todayDutyBlock"></div>
+      <div class="week-title">Your week at a glance</div>
+      <div class="week-strip" id="weekStrip"></div>
+      <div id="upcomingBlock"></div>
+    </div>
+
+    <!-- REQUEST LEAVE -->
+    <div class="view" id="view-leave">
+      <div class="leave-form">
+        <div class="lf-title">Apply for Leave</div>
+        <div class="lf-sub">Leave must be requested at least <b>3 days in advance</b>. You must propose a replacement colleague. Admin will approve or reject your request.</div>
+
+        <div id="leaveErrBox" class="err-box"></div>
+        <div id="leaveOkBox" class="ok-box"></div>
+
+        <div class="fr">
+          <div class="fg">
+            <label class="fl">Leave Date</label>
+            <input class="fc" type="date" id="leaveDate" onchange="onLeaveDateChange()">
+          </div>
+          <div class="fg">
+            <label class="fl">Your Shift on That Day</label>
+            <input class="fc" id="leaveShiftDisplay" readonly style="cursor:default;background:var(--bg);color:var(--txt2)">
+          </div>
+        </div>
+
+        <div id="lockWarning" class="err-box" style="margin-bottom:12px"></div>
+        <div id="advanceWarning" class="warn-box" style="display:none">⏰ Minimum 3 days advance notice required. Please select a date at least 3 days from today.</div>
+
+        <div class="fg">
+          <label class="fl">Proposed Replacement (Required)</label>
+          <select class="fc" id="leaveReplacement">
+            <option value="">— Select a colleague —</option>
+          </select>
+        </div>
+        <div id="replShiftInfo" style="font-size:12px;color:var(--txt2);margin-top:-8px;margin-bottom:12px;display:none"></div>
+
+        <div class="fg">
+          <label class="fl">Reason for Leave</label>
+          <input class="fc" id="leaveReason" placeholder="e.g. Medical, Family, Personal…">
+        </div>
+
+        <div class="info-box">📌 Your leave request will be visible to the admin immediately. You will see the status update in "My Requests". Admin may add a note when approving or rejecting.</div>
+
+        <button class="submit-btn" id="leaveSubmitBtn" onclick="submitLeave()">Submit Leave Request</button>
+      </div>
+    </div>
+
+    <!-- MY REQUESTS -->
+    <div class="view" id="view-myrequests">
+      <div id="myRequestsList"></div>
+    </div>
+
+    <!-- PROFILE -->
+    <div class="view" id="view-profile">
+      <div class="profile-card" id="profileCard"></div>
+    </div>
+
+  </div>
+</div>
+
+<div class="tc" id="toastC"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  GOOGLE SHEETS API LAYER  —  Staff Portal
+// ═══════════════════════════════════════════════════════
+const GAS_URL = localStorage.getItem('gasUrl') || '';
+
+async function loadStaffData() {
+  if (!GAS_URL) return false;
+  try {
+    const r = await fetch(GAS_URL + '?t=' + Date.now(), { method: 'GET' });
+    const json = await r.json();
+    if (!json.ok) return false;
+    const data = json.data;
+    if (data.employees?.length)     DB.employees     = data.employees;
+    if (data.roster?.length)        DB.roster        = data.roster;
+    if (data.leaveRequests?.length) DB.leaveRequests = data.leaveRequests;
+    if (data.lockedRanges?.length)  DB.lockedRanges  = data.lockedRanges;
+    if (data.staffBlocks?.length)   DB.staffLeaveBlocks = data.staffBlocks;
+    return true;
+  } catch(e) { return false; }
+}
+
+async function pushStaffRecord(sheetKey, action, row, id) {
+  if (!GAS_URL) return;
+  try {
+    await fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action, sheet: sheetKey, row, id }),
+      headers: { 'Content-Type': 'text/plain' }
+    });
+  } catch(e) { console.warn('push failed:', e); }
+}
+
+
+// ═══ SHARED DB ═══
+// We reference window.DB set by admin.html if opened from it, else use local seed
+let DB = window.opener?.DB || window.DB;
+if (!DB) {
+  // Stand-alone seed for staff portal when opened independently
+  DB = {
+    employees: [
+      {id:'LAB-001',name:'Dr. Priya Sharma',role:'Lab Technician',dept:'Lab Operations',contact:'9876543001',pin:'1234',preferredShift:'A',joinDate:'2023-01-01'},
+      {id:'LAB-002',name:'Rahul Mishra',role:'Senior Technician',dept:'Lab Operations',contact:'9876543002',pin:'2345',preferredShift:'B',joinDate:'2023-01-01'},
+      {id:'LAB-003',name:'Anita Verma',role:'Sample Collector',dept:'Sample Collection',contact:'9876543003',pin:'3456',preferredShift:'C',joinDate:'2023-01-01'},
+      {id:'LAB-004',name:'Suresh Gupta',role:'Lab Assistant',dept:'Accession',contact:'9876543004',pin:'4567',preferredShift:'A',joinDate:'2023-01-01'},
+      {id:'LAB-005',name:'Meena Yadav',role:'Receptionist',dept:'Front Desk',contact:'9876543005',pin:'5678',preferredShift:'B',joinDate:'2023-01-01'},
+      {id:'LAB-006',name:'Dr. Deepak Tiwari',role:'Pathologist',dept:'Histopathology',contact:'9876543006',pin:'6789',preferredShift:'C',joinDate:'2023-01-01'},
+      {id:'LAB-007',name:'Kavita Singh',role:'Cytotechnician',dept:'Histopathology',contact:'9876543007',pin:'7890',preferredShift:'A',joinDate:'2023-01-01'},
+      {id:'LAB-008',name:'Vikram Patel',role:'Driver/Courier',dept:'Sample Transport',contact:'9876543008',pin:'8901',preferredShift:'B',joinDate:'2023-01-01'},
+      {id:'LAB-009',name:'Nisha Agarwal',role:'Accountant',dept:'Finance',contact:'9876543009',pin:'9012',preferredShift:'C',joinDate:'2023-01-01'},
+      {id:'LAB-010',name:'Ajay Kumar',role:'Admin Officer',dept:'Administration',contact:'9876543010',pin:'0123',preferredShift:'A',joinDate:'2023-01-01'},
+      {id:'LAB-011',name:'Sunita Pandey',role:'Sample Collector',dept:'Sample Collection',contact:'9876543011',pin:'1122',preferredShift:'B',joinDate:'2023-01-01'},
+      {id:'LAB-012',name:'Rohit Srivastava',role:'Lab Technician',dept:'Lab Operations',contact:'9876543012',pin:'2233',preferredShift:'C',joinDate:'2023-01-01'},
+    ],
+    roster: [],
+    leaveRequests: [],
+    lockedRanges: [],
+  };
+  // Seed roster
+  const today2 = new Date();
+  const shifts = ['A','B','C','A','B','C','OFF','A'];
+  const sites = ['Main Lab','Site B - Sigra','Site C - Lanka','Site D - BHU','Main Lab','Main Lab','Main Lab','Site E - Cantonment'];
+  for(let d=-3;d<=14;d++){
+    const dt=new Date(today2); dt.setDate(today2.getDate()+d);
+    const ds=dt.toISOString().split('T')[0];
+    DB.employees.forEach((emp,i)=>{
+      const sh=shifts[(i+d+24)%8];
+      DB.roster.push({id:`R${ds}${emp.id}`,empId:emp.id,date:ds,shift:sh,site:sites[i%sites.length],notes:'',status:'scheduled'});
+    });
+  }
+  DB.lockedRanges.push({id:'LK001',from:fmtDate(addDays(today2,10)),to:fmtDate(addDays(today2,11)),reason:'NABL Inspection',addedOn:fmtDate(today2)});
+}
+
+const SHIFTS = {A:{label:'Shift A',time:'07:00–16:00'},B:{label:'Shift B',time:'14:00–23:00'},C:{label:'Shift C',time:'22:00–07:00 (+1)'},OFF:{label:'Day Off',time:'—'}};
+
+let currentUser = null;
+
+function fmtDate(d){return d.toISOString().split('T')[0];}
+function addDays(d,n){const r=new Date(d);r.setDate(d.getDate()+n);return r;}
+function today(){return fmtDate(new Date());}
+function getEmp(id){return DB.employees.find(e=>e.id===id);}
+function isDateLocked(ds){return DB.lockedRanges.some(r=>ds>=r.from&&ds<=r.to);}
+function daysDiff(from,to){return Math.round((new Date(to)-new Date(from))/86400000);}
+
+function toast(msg,t=''){
+  const el=document.createElement('div');
+  el.className=`toast ${t}`;el.textContent=msg;
+  document.getElementById('toastC').appendChild(el);
+  setTimeout(()=>el.remove(),3000);
+}
+
+// ═══ LOGIN ═══
+function doLogin(){
+  const pin=document.getElementById('loginPin').value.trim();
+  const err=document.getElementById('loginErr');
+  err.style.display='none';
+
+  // Admin login
+  if(pin==='0000'){
+    window.location.href='admin.html'; return;
+  }
+
+  const emp=DB.employees.find(e=>e.pin===pin);
+  if(!emp){err.style.display='block';return;}
+
+  currentUser=emp;
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('appShell').style.display='block';
+  document.getElementById('staffBadge').textContent=emp.name;
+  // Show sync status
+  const syncEl=document.getElementById('staffSyncBadge');
+  if(syncEl) syncEl.style.display = GAS_URL ? 'inline' : 'none';
+
+  populateReplacementList();
+  renderDuty();
+}
+
+document.getElementById('loginPin').addEventListener('keyup',e=>{if(e.key==='Enter')doLogin();});
+
+function logout(){
+  currentUser=null;
+  document.getElementById('loginScreen').style.display='flex';
+  document.getElementById('appShell').style.display='none';
+  document.getElementById('loginPin').value='';
+  document.getElementById('loginErr').style.display='none';
+  tab('duty');
+}
+
+// ═══ TABS ═══
+function tab(v){
+  document.querySelectorAll('.view').forEach(e=>e.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(e=>e.classList.remove('active'));
+  document.getElementById('view-'+v).classList.add('active');
+  const tabs={'duty':0,'leave':1,'myrequests':2,'profile':3};
+  document.querySelectorAll('.tab')[tabs[v]].classList.add('active');
+  const renders={duty:renderDuty,leave:renderLeaveForm,myrequests:renderMyRequests,profile:renderProfile};
+  if(renders[v]) renders[v]();
+}
+
+// ═══ MY DUTY ═══
+function renderDuty(){
+  if(!currentUser)return;
+  const tod=today();
+  const todEntry=DB.roster.find(r=>r.empId===currentUser.id&&r.date===tod);
+  const block=document.getElementById('todayDutyBlock');
+
+  if(!todEntry||todEntry.shift==='OFF'){
+    block.innerHTML=`<div class="off-card" style="margin-bottom:18px">
+      <div style="font-size:32px;margin-bottom:8px">🌙</div>
+      <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700;color:var(--txt)">Day Off Today</div>
+      <div style="font-size:13px;color:var(--txt2);margin-top:6px">You are not scheduled for a shift today. Enjoy your rest!</div>
+    </div>`;
+  } else {
+    const sh=SHIFTS[todEntry.shift];
+    const locked=isDateLocked(tod);
+    block.innerHTML=`<div class="today-card" style="margin-bottom:18px">
+      <div class="today-label">Today's Duty — ${new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long'})}</div>
+      <div class="today-shift">Shift ${todEntry.shift}</div>
+      <div class="today-time">${sh.time} &nbsp;·&nbsp; 9 Hours</div>
+      <div class="today-site" style="margin-top:10px">📍 ${todEntry.site||'Main Lab'}</div>
+      ${locked?`<div style="margin-top:10px;font-size:12px;color:var(--red)">🔒 Leave requests are locked for today</div>`:''}
+    </div>`;
+  }
+
+  // Week strip
+  const strip=document.getElementById('weekStrip');
+  strip.innerHTML='';
+  const dayNames=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  for(let i=0;i<7;i++){
+    const dt=new Date(); dt.setDate(new Date().getDate()+i);
+    const ds=fmtDate(dt);
+    const entry=DB.roster.find(r=>r.empId===currentUser.id&&r.date===ds);
+    const sh=entry?.shift||'—';
+    const isToday=ds===tod;
+    const locked=isDateLocked(ds);
+    const dow=dt.getDay()===0?6:dt.getDay()-1;
+    strip.innerHTML+=`<div class="wday${isToday?' today-wday':''}${locked?' locked-wday':''}">
+      <div class="wd-name">${dayNames[dow]}</div>
+      <div class="wd-num">${dt.getDate()}</div>
+      ${sh!=='—'?`<div class="ws-tag ${sh}">${sh}</div>`:'<div class="ws-tag OFF">—</div>'}
+      ${locked?'<div style="font-size:9px;color:var(--red);margin-top:3px">🔒</div>':''}
+    </div>`;
+  }
+
+  // Upcoming (next 14 days)
+  const upcoming=[];
+  for(let i=1;i<=14;i++){
+    const dt=new Date(); dt.setDate(new Date().getDate()+i);
+    const ds=fmtDate(dt);
+    const entry=DB.roster.find(r=>r.empId===currentUser.id&&r.date===ds);
+    if(entry&&entry.shift!=='OFF') upcoming.push({ds,entry,locked:isDateLocked(ds)});
+  }
+  const upDiv=document.getElementById('upcomingBlock');
+  if(upcoming.length){
+    upDiv.innerHTML=`<div class="week-title" style="margin-top:4px">Upcoming shifts (next 14 days)</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${upcoming.map(u=>{
+        const sh=SHIFTS[u.entry.shift];
+        return `<div style="background:var(--panel);border:1px solid ${u.locked?'rgba(240,74,88,.25)':'var(--bdr)'};border-radius:var(--r);padding:12px 16px;display:flex;align-items:center;gap:14px">
+          <span class="ws-tag ${u.entry.shift}">${u.entry.shift}</span>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:500">${new Date(u.ds+'T00:00:00').toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'short'})}</div>
+            <div style="font-size:12px;color:var(--txt2);font-family:'DM Mono',monospace">${sh.time}</div>
+          </div>
+          <div style="font-size:12px;color:var(--txt2)">📍 ${u.entry.site||'Main Lab'}</div>
+          ${u.locked?`<span style="font-size:11px;color:var(--red)">🔒 Locked</span>`:''}
+        </div>`;
+      }).join('')}
+    </div>`;
+  } else {
+    upDiv.innerHTML='';
+  }
+}
+
+// ═══ LEAVE FORM ═══
+function renderLeaveForm(){
+  // Set min date to 3 days from now
+  const minDate=fmtDate(addDays(new Date(),3));
+  document.getElementById('leaveDate').min=minDate;
+  document.getElementById('leaveDate').value='';
+  document.getElementById('leaveShiftDisplay').value='';
+  document.getElementById('lockWarning').style.display='none';
+  document.getElementById('advanceWarning').style.display='none';
+  document.getElementById('leaveErrBox').style.display='none';
+  document.getElementById('leaveOkBox').style.display='none';
+  document.getElementById('replShiftInfo').style.display='none';
+}
+
+function populateReplacementList(){
+  if(!currentUser)return;
+  const sel=document.getElementById('leaveReplacement');
+  sel.innerHTML='<option value="">— Select a colleague —</option>';
+  DB.employees.filter(e=>e.id!==currentUser.id).forEach(e=>{
+    sel.innerHTML+=`<option value="${e.id}">${e.name} — ${e.dept}</option>`;
+  });
+}
+
+function onLeaveDateChange(){
+  const ds=document.getElementById('leaveDate').value;
+  if(!ds){return;}
+
+  // Check advance notice
+  const diff=daysDiff(today(),ds);
+  const advWarn=document.getElementById('advanceWarning');
+  if(diff<3){advWarn.style.display='block';}else{advWarn.style.display='none';}
+
+  // Check lock
+  const lockWarn=document.getElementById('lockWarning');
+  // Check staff-specific block too
+  const staffBlocked = (DB.staffLeaveBlocks||[]).some(b=>b.empId===currentUser.id && ds>=b.from && ds<=b.to);
+  if(staffBlocked){
+    showErr('Leave not allowed on this date — you have been specifically blocked by admin.');return;
+  }
+  const staffBlocked2 = (DB.staffLeaveBlocks||[]).some(b=>b.empId===currentUser?.id && ds>=b.from && ds<=b.to);
+  if(staffBlocked2){
+    lockWarn.textContent='🚫 You have been specifically blocked from applying leave on this date by admin.';
+    lockWarn.style.display='block';
+  } else if(isDateLocked(ds)){
+    const reason=DB.lockedRanges.find(r=>ds>=r.from&&ds<=r.to)?.reason||'Admin restriction';
+    lockWarn.textContent=`🔒 Leave requests are not allowed on ${ds}. Reason: ${reason}`;
+    lockWarn.style.display='block';
+  } else {
+    lockWarn.style.display='none';
+  }
+
+  // Show shift
+  const entry=DB.roster.find(r=>r.empId===currentUser.id&&r.date===ds);
+  document.getElementById('leaveShiftDisplay').value=entry?`Shift ${entry.shift} (${SHIFTS[entry.shift].time})`:'No shift assigned';
+
+  // Show replacement's shift if selected
+  showReplShift();
+}
+
+document.getElementById('leaveReplacement').addEventListener('change',showReplShift);
+
+function showReplShift(){
+  const ds=document.getElementById('leaveDate').value;
+  const replId=document.getElementById('leaveReplacement').value;
+  const div=document.getElementById('replShiftInfo');
+  if(!ds||!replId){div.style.display='none';return;}
+  const replEntry=DB.roster.find(r=>r.empId===replId&&r.date===ds);
+  if(replEntry){
+    div.style.display='block';
+    div.textContent=`ℹ ${getEmp(replId)?.name} is on ${replEntry.shift==='OFF'?'Day Off':SHIFTS[replEntry.shift].label+' ('+SHIFTS[replEntry.shift].time+')'} on that day`;
+    div.style.color=replEntry.shift==='OFF'?'var(--acc)':'var(--orange)';
+  } else {
+    div.style.display='block';
+    div.style.color='var(--txt2)';
+    div.textContent=`ℹ ${getEmp(replId)?.name} has no assigned shift on that date`;
+  }
+}
+
+function submitLeave(){
+  const ds=document.getElementById('leaveDate').value;
+  const replId=document.getElementById('leaveReplacement').value;
+  const reason=document.getElementById('leaveReason').value.trim();
+  const errBox=document.getElementById('leaveErrBox');
+  const okBox=document.getElementById('leaveOkBox');
+  errBox.style.display='none';okBox.style.display='none';
+
+  function showErr(msg){errBox.textContent=msg;errBox.style.display='block';}
+
+  if(!ds){showErr('Please select a leave date.');return;}
+  if(!replId){showErr('Please select a replacement colleague.');return;}
+  if(!reason){showErr('Please provide a reason for leave.');return;}
+  if(daysDiff(today(),ds)<3){showErr('Leave must be requested at least 3 days in advance.');return;}
+  // Check staff-specific block too
+  const staffBlocked = (DB.staffLeaveBlocks||[]).some(b=>b.empId===currentUser.id && ds>=b.from && ds<=b.to);
+  if(staffBlocked){
+    showErr('Leave not allowed on this date — you have been specifically blocked by admin.');return;
+  }
+  if(isDateLocked(ds)){
+    const r=DB.lockedRanges.find(r=>ds>=r.from&&ds<=r.to);
+    showErr(`Leave not allowed on ${ds}. Reason: ${r?.reason||'Admin restriction'}`);return;
+  }
+  // Check duplicate
+  const dup=DB.leaveRequests.find(r=>r.empId===currentUser.id&&r.leaveDate===ds&&r.status!=='rejected');
+  if(dup){showErr('You already have a leave request for this date.');return;}
+
+  const newLR = {
+    id:'LR'+Date.now(),empId:currentUser.id,leaveDate:ds,reason,
+    replacementEmpId:replId,status:'pending',submittedOn:today()
+  };
+  DB.leaveRequests.push(newLR);
+  pushStaffRecord('leaveRequests', 'append', newLR);
+
+  okBox.textContent='✅ Leave request submitted successfully! Admin will review and notify you.';
+  okBox.style.display='block';
+  document.getElementById('leaveDate').value='';
+  document.getElementById('leaveReplacement').value='';
+  document.getElementById('leaveReason').value='';
+  document.getElementById('leaveShiftDisplay').value='';
+  document.getElementById('advanceWarning').style.display='none';
+  toast('Leave request submitted','');
+}
+
+// ═══ MY REQUESTS ═══
+function renderMyRequests(){
+  if(!currentUser)return;
+  const reqs=DB.leaveRequests.filter(r=>r.empId===currentUser.id).sort((a,b)=>a.submittedOn<b.submittedOn?1:-1);
+  const div=document.getElementById('myRequestsList');
+  div.innerHTML='';
+  if(!reqs.length){
+    div.innerHTML=`<div class="empty"><div class="empty-i">📭</div>You have no leave requests yet.</div>`;return;
+  }
+  reqs.forEach(lr=>{
+    const repl=getEmp(lr.replacementEmpId);
+    const rEntry=DB.roster.find(r=>r.empId===currentUser.id&&r.date===lr.leaveDate);
+    const stClass=`req-status-${lr.status}`;
+    div.innerHTML+=`<div class="req-card">
+      <div class="req-top">
+        <div>
+          <div class="req-date">${lr.leaveDate}</div>
+          <div style="font-size:12px;color:var(--txt2);margin-top:2px">Submitted: ${lr.submittedOn}</div>
+        </div>
+        <span class="${stClass}">${lr.status.toUpperCase()}</span>
+      </div>
+      <div class="req-info">
+        <div class="ri"><div class="ri-l">Shift</div><div class="ri-v">${rEntry?'Shift '+rEntry.shift:'—'}</div></div>
+        <div class="ri"><div class="ri-l">Replacement</div><div class="ri-v">${repl?.name||'None'}</div></div>
+        <div class="ri"><div class="ri-l">Reason</div><div class="ri-v">${lr.reason||'—'}</div></div>
+      </div>
+      ${lr.adminNote?`<div class="req-note">📌 Admin note: ${lr.adminNote}</div>`:''}
+    </div>`;
+  });
+}
+
+// ═══ PROFILE ═══
+function renderProfile(){
+  if(!currentUser)return;
+  const initials=currentUser.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  const todEntry=DB.roster.find(r=>r.empId===currentUser.id&&r.date===today());
+  const myReqs=DB.leaveRequests.filter(r=>r.empId===currentUser.id);
+  document.getElementById('profileCard').innerHTML=`
+    <div class="profile-top">
+      <div class="profile-avatar">${initials}</div>
+      <div>
+        <div class="profile-name">${currentUser.name}</div>
+        <div class="profile-role">${currentUser.role} · ${currentUser.dept}</div>
+      </div>
+    </div>
+    <div class="profile-grid">
+      <div class="pg-item"><div class="pg-label">Employee ID</div><div class="pg-val" style="font-family:'DM Mono',monospace">${currentUser.id}</div></div>
+      <div class="pg-item"><div class="pg-label">Contact</div><div class="pg-val">${currentUser.contact}</div></div>
+      <div class="pg-item"><div class="pg-label">Today's Shift</div><div class="pg-val">${todEntry?'Shift '+todEntry.shift+' ('+SHIFTS[todEntry.shift].time+')':'Day Off'}</div></div>
+      <div class="pg-item"><div class="pg-label">Preferred Shift</div><div class="pg-val">Shift ${currentUser.preferredShift}</div></div>
+      <div class="pg-item"><div class="pg-label">Total Requests</div><div class="pg-val">${myReqs.length}</div></div>
+      <div class="pg-item"><div class="pg-label">Approved Leaves</div><div class="pg-val">${myReqs.filter(r=>r.status==='approved').length}</div></div>
+      <div class="pg-item"><div class="pg-label">Join Date</div><div class="pg-val">${currentUser.joinDate}</div></div>
+      <div class="pg-item"><div class="pg-label">Department</div><div class="pg-val">${currentUser.dept}</div></div>
+    </div>`;
+}
+
+// ═══ INIT ═══
+
+</script>
+</body>
+</html>
