@@ -263,23 +263,49 @@ header{
 <div class="tc" id="toastC"></div>
 
 <script>
-// ═══════════════════════════════════════════════════════
-//  GOOGLE SHEETS API LAYER  —  Staff Portal
-// ═══════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════
+//  ANKURAM LABS — STAFF PORTAL  |  Storage Engine
+// ════════════════════════════════════════════════════════════
 const GAS_URL = localStorage.getItem('gasUrl') || '';
+const LS_KEY  = 'ankuram_v2';   // same key as admin — shared storage
+
+function loadLocalStaff() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return false;
+    const d = JSON.parse(raw);
+    if (!d.employees || d.employees.length === 0) return false;
+    DB.employees        = d.employees;
+    DB.roster           = d.roster        || [];
+    DB.leaveRequests    = d.leaveRequests || [];
+    DB.lockedRanges     = d.lockedRanges  || [];
+    DB.staffLeaveBlocks = d.staffBlocks   || [];
+    return true;
+  } catch(e) { return false; }
+}
+
+function saveLeaveLocal() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    const d   = raw ? JSON.parse(raw) : {};
+    d.leaveRequests = DB.leaveRequests;
+    d.ts = Date.now();
+    localStorage.setItem(LS_KEY, JSON.stringify(d));
+  } catch(e) {}
+}
 
 async function loadStaffData() {
   if (!GAS_URL) return false;
   try {
-    const r = await fetch(GAS_URL + '?t=' + Date.now(), { method: 'GET' });
-    const json = await r.json();
-    if (!json.ok) return false;
-    const data = json.data;
-    if (data.employees?.length)     DB.employees     = data.employees;
-    if (data.roster?.length)        DB.roster        = data.roster;
-    if (data.leaveRequests?.length) DB.leaveRequests = data.leaveRequests;
-    if (data.lockedRanges?.length)  DB.lockedRanges  = data.lockedRanges;
-    if (data.staffBlocks?.length)   DB.staffLeaveBlocks = data.staffBlocks;
+    const r = await fetch(GAS_URL + '?t=' + Date.now());
+    const j = await r.json();
+    if (!j.ok || !j.data?.employees?.length) return false;
+    const d = j.data;
+    DB.employees        = d.employees;
+    DB.roster           = d.roster        || [];
+    DB.leaveRequests    = d.leaveRequests || [];
+    DB.lockedRanges     = d.lockedRanges  || [];
+    DB.staffLeaveBlocks = d.staffBlocks   || [];
     return true;
   } catch(e) { return false; }
 }
@@ -292,38 +318,14 @@ async function pushStaffRecord(sheetKey, action, row, id) {
       body: JSON.stringify({ action, sheet: sheetKey, row, id }),
       headers: { 'Content-Type': 'text/plain' }
     });
-  } catch(e) { console.warn('push failed:', e); }
-}
-
-
-// ═══ SHARED DB ═══
-const LS_KEY = 'ankuram_labroster_v1';
-
-function loadLocalStaff() {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return null;
-    const d = JSON.parse(raw);
-    return d.employees?.length ? d : null;
-  } catch(e) { return null; }
-}
-
-function saveLocalLeave() {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    const existing = raw ? JSON.parse(raw) : {};
-    existing.leaveRequests = DB.leaveRequests;
-    localStorage.setItem(LS_KEY, JSON.stringify(existing));
   } catch(e) {}
 }
 
-// Load from localStorage first, fall back to built-in seed
-const _savedData = loadLocalStaff();
 
 let DB = window.opener?.DB || window.DB;
 if (!DB) {
   DB = {
-    employees: _savedData?.employees || [
+    employees: [
       {id:'LAB-001',name:'Dr. Priya Sharma',role:'Lab Technician',dept:'Lab Operations',contact:'9876543001',pin:'1234',preferredShift:'A',joinDate:'2023-01-01'},
       {id:'LAB-002',name:'Rahul Mishra',role:'Senior Technician',dept:'Lab Operations',contact:'9876543002',pin:'2345',preferredShift:'B',joinDate:'2023-01-01'},
       {id:'LAB-003',name:'Anita Verma',role:'Sample Collector',dept:'Sample Collection',contact:'9876543003',pin:'3456',preferredShift:'C',joinDate:'2023-01-01'},
@@ -337,10 +339,10 @@ if (!DB) {
       {id:'LAB-011',name:'Sunita Pandey',role:'Sample Collector',dept:'Sample Collection',contact:'9876543011',pin:'1122',preferredShift:'B',joinDate:'2023-01-01'},
       {id:'LAB-012',name:'Rohit Srivastava',role:'Lab Technician',dept:'Lab Operations',contact:'9876543012',pin:'2233',preferredShift:'C',joinDate:'2023-01-01'},
     ],
-    roster: _savedData?.roster || [],
-    leaveRequests: _savedData?.leaveRequests || [],
-    lockedRanges: _savedData?.lockedRanges || [],
-    staffLeaveBlocks: _savedData?.staffBlocks || [],
+    roster: [],
+    leaveRequests: [],
+    lockedRanges: [],
+    staffLeaveBlocks: [],
     lockedRanges: [],
   };
   // Seed roster
@@ -610,7 +612,7 @@ function submitLeave(){
   };
   DB.leaveRequests.push(newLR);
   pushStaffRecord('leaveRequests', 'append', newLR);
-  saveLocalLeave();
+  saveLeaveLocal();
 
   okBox.textContent='✅ Leave request submitted successfully! Admin will review and notify you.';
   okBox.style.display='block';
@@ -681,12 +683,16 @@ function renderProfile(){
 
 // ═══ INIT ═══
 (async () => {
-  // 1. Try Sheets
-  const sheetsOk = await loadStaffData();
-  // 2. If Sheets loaded, it already overwrote DB - nothing more needed
-  // (localStorage fallback already applied above at DB init time)
+  // 1. Load local data first (instant)
+  const hasLocal = loadLocalStaff();
+  // 2. If Sheets configured, try to refresh from Sheets
+  if (GAS_URL) {
+    const sheetsOk = await loadStaffData();
+    if (sheetsOk) saveLeaveLocal(); // cache to local
+  }
   populateLoginList();
 })();
+
 </script>
 </body>
 </html>
