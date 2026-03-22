@@ -391,7 +391,7 @@ function fmtDate(d){return d.toISOString().split('T')[0];}
 function addDays(d,n){const r=new Date(d);r.setDate(d.getDate()+n);return r;}
 function today(){return fmtDate(new Date());}
 function getEmp(id){return DB.employees.find(e=>e.id===id);}
-function isDateLocked(ds){return DB.lockedRanges.some(r=>ds>=r.from&&ds<=r.to);}
+function isDateLocked(ds){return isLockedDate(ds, DB.lockedRanges);}
 function daysDiff(from,to){return Math.round((new Date(to)-new Date(from))/86400000);}
 
 function toast(msg,t=''){
@@ -567,7 +567,7 @@ function onLeaveDateChange(){
   if(staffBlocked2){
     lockWarn.textContent='🚫 You have been specifically blocked from applying leave on this date by admin.';
     lockWarn.style.display='block';
-  } else if(isDateLocked(ds)){
+  } else if(isLockedDate(ds, DB.lockedRanges)){
     const reason=DB.lockedRanges.find(r=>ds>=r.from&&ds<=r.to)?.reason||'Admin restriction';
     lockWarn.textContent=`🔒 Leave requests are not allowed on ${ds}. Reason: ${reason}`;
     lockWarn.style.display='block';
@@ -602,12 +602,30 @@ function showReplShift(){
   }
 }
 
+// Helper: normalize any date value to YYYY-MM-DD
+function normDate(v){
+  if(!v||v==='')return '';
+  if(typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v))return v;
+  try{const d=new Date(v);if(!isNaN(d.getTime())){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}}catch(e){}
+  return String(v);
+}
+
+// Check if date is locked using normalized dates
+function isLockedDate(ds, ranges){
+  return (ranges||[]).some(r=>{
+    const from=normDate(r.from);
+    const to=normDate(r.to);
+    return from && to && ds>=from && ds<=to;
+  });
+}
+
 async function submitLeave(){
   const ds=document.getElementById('leaveDate').value;
   const replId=document.getElementById('leaveReplacement').value;
   const reason=document.getElementById('leaveReason').value.trim();
   const errBox=document.getElementById('leaveErrBox');
   const okBox=document.getElementById('leaveOkBox');
+  const btn=document.getElementById('leaveSubmitBtn');
   errBox.style.display='none';okBox.style.display='none';
 
   function showErr(msg){errBox.textContent=msg;errBox.style.display='block';}
@@ -616,37 +634,44 @@ async function submitLeave(){
   if(!replId){showErr('Please select a replacement colleague.');return;}
   if(!reason){showErr('Please provide a reason for leave.');return;}
   if(daysDiff(today(),ds)<3){showErr('Leave must be requested at least 3 days in advance.');return;}
-  // Check staff-specific block too
-  const staffBlocked = (DB.staffLeaveBlocks||[]).some(b=>b.empId===currentUser.id && ds>=b.from && ds<=b.to);
-  if(staffBlocked){
-    showErr('Leave not allowed on this date — you have been specifically blocked by admin.');return;
-  }
-  // Re-check locks from Sheets in real-time before submitting
+
+  // Disable button and fetch FRESH data from Sheets before any lock check
+  btn.disabled=true;
+  btn.textContent='⏳ Verifying with admin…';
+
+  let freshLocks = DB.lockedRanges || [];
+  let freshBlocks = DB.staffLeaveBlocks || [];
+
   if(GAS_URL){
-    errBox.textContent='⏳ Checking with admin…';errBox.style.display='block';
     try{
       const r2=await fetch(GAS_URL+'?t='+Date.now());
       const j2=await r2.json();
       if(j2.ok&&j2.data){
-        // Update locked ranges and staff blocks from latest Sheets data
-        if(j2.data.lockedRanges) DB.lockedRanges=(j2.data.lockedRanges||[]).map(x=>{
-          ['from','to'].forEach(f=>{if(x[f]&&!/^\d{4}-\d{2}-\d{2}$/.test(x[f])){try{const d=new Date(x[f]);if(!isNaN(d)){x[f]=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}}catch(e){}}});
-          return x;
-        });
-        if(j2.data.staffBlocks) DB.staffLeaveBlocks=j2.data.staffBlocks||[];
-        if(j2.data.leaveRequests) DB.leaveRequests=j2.data.leaveRequests||[];
+        freshLocks  = (j2.data.lockedRanges||[]);
+        freshBlocks = (j2.data.staffBlocks||[]);
+        // Update DB with fresh data
+        DB.lockedRanges    = freshLocks;
+        DB.staffLeaveBlocks= freshBlocks;
+        if(j2.data.leaveRequests) DB.leaveRequests=j2.data.leaveRequests;
         saveLeaveLocal();
       }
-    }catch(e){}
-    errBox.style.display='none';
+    }catch(e){
+      // Network failed — fall back to local data, still run checks
+      freshLocks  = DB.lockedRanges  || [];
+      freshBlocks = DB.staffLeaveBlocks || [];
+    }
   }
 
-  // Now re-check staff-specific block with fresh data
-  const staffBlockedFresh=(DB.staffLeaveBlocks||[]).some(b=>b.empId===currentUser.id&&ds>=b.from&&ds<=b.to);
-  if(staffBlockedFresh){showErr('Leave not allowed — you have been specifically blocked by admin for this date.');return;}
+  btn.disabled=false;
+  btn.textContent='Submit Leave Request';
 
-  if(isDateLocked(ds)){
-    const r=DB.lockedRanges.find(r=>ds>=r.from&&ds<=r.to);
+  // Check staff-specific block
+  const staffBlockedFresh=freshBlocks.some(b=>b.empId===currentUser.id&&ds>=normDate(b.from)&&ds<=normDate(b.to));
+  if(staffBlockedFresh){showErr('🚫 Leave not allowed — you have been specifically blocked by admin for this date.');return;}
+
+  // Check global lock with normalized dates
+  if(isLockedDate(ds, freshLocks)){
+    const r=freshLocks.find(r=>ds>=normDate(r.from)&&ds<=normDate(r.to));
     showErr('🔒 Leave not allowed on '+ds+'. Reason: '+(r?.reason||'Admin restriction'));return;
   }
   // Check duplicate
