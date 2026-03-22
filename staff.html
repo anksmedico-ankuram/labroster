@@ -165,6 +165,12 @@ header{
     <div class="login-logo">Lab<em>Roster</em></div>
     <div style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:2px;color:var(--txt2);text-transform:uppercase;margin-bottom:4px;margin-top:-2px">Ankuram Labs</div>
     <div class="login-sub">Staff Portal — Please sign in</div>
+    <div id="gasSetupBanner" style="display:none;background:rgba(245,133,58,.1);border:1px solid rgba(245,133,58,.3);border-radius:8px;padding:10px 12px;margin-bottom:16px;font-size:12px;text-align:left">
+      <div style="color:#f5853a;font-weight:500;margin-bottom:6px">⚠ Not connected to lab database</div>
+      <div style="color:#7d8aaa;margin-bottom:8px">Ask your admin for the connection URL, then enter it below:</div>
+      <input id="staffGasInput" placeholder="Paste Google Sheets URL here…" style="width:100%;background:#141824;border:1px solid #252d44;color:#dde3f5;border-radius:6px;padding:8px 10px;font-size:12px;margin-bottom:6px;box-sizing:border-box">
+      <button onclick="saveStaffGasUrl()" style="width:100%;background:#22c97e;color:#020e07;border:none;border-radius:6px;padding:7px;font-size:12px;font-weight:600;cursor:pointer">Save & Connect</button>
+    </div>
 
     <div class="login-label">Enter Your 4-Digit PIN</div>
     <input class="login-input" type="password" id="loginPin" maxlength="4" placeholder="••••" inputmode="numeric" autofocus>
@@ -267,6 +273,23 @@ header{
 //  ANKURAM LABS — STAFF PORTAL  |  Storage Engine
 // ════════════════════════════════════════════════════════════
 const GAS_URL = localStorage.getItem('gasUrl') || '';
+
+function saveStaffGasUrl() {
+  const url = document.getElementById('staffGasInput')?.value?.trim();
+  if (!url || !url.startsWith('https://script.google.com')) {
+    alert('Invalid URL. Must start with https://script.google.com'); return;
+  }
+  localStorage.setItem('gasUrl', url);
+  location.reload();
+}
+
+// Show setup banner if no GAS URL configured
+window.addEventListener('DOMContentLoaded', () => {
+  if (!GAS_URL) {
+    const banner = document.getElementById('gasSetupBanner');
+    if (banner) banner.style.display = 'block';
+  }
+});
 const LS_KEY  = 'ankuram_v2';   // same key as admin — shared storage
 
 function loadLocalStaff() {
@@ -311,14 +334,14 @@ async function loadStaffData() {
 }
 
 async function pushStaffRecord(sheetKey, action, row, id) {
-  if (!GAS_URL) return;
-  try {
-    await fetch(GAS_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action, sheet: sheetKey, row, id }),
-      headers: { 'Content-Type': 'text/plain' }
-    });
-  } catch(e) {}
+  if (!GAS_URL) return false;
+  const r = await fetch(GAS_URL, {
+    method: 'POST',
+    body: JSON.stringify({ action, sheet: sheetKey, row, id }),
+    headers: { 'Content-Type': 'text/plain' }
+  });
+  const j = await r.json();
+  return j.ok !== false;
 }
 
 
@@ -357,7 +380,7 @@ if (!DB) {
       DB.roster.push({id:`R${ds}${emp.id}`,empId:emp.id,date:ds,shift:sh,site:sites[i%sites.length],notes:'',status:'scheduled'});
     });
   }
-  DB.lockedRanges.push({id:'LK001',from:fmtDate(addDays(today2,10)),to:fmtDate(addDays(today2,11)),reason:'NABL Inspection',addedOn:fmtDate(today2)});
+  // Locked ranges loaded from Sheets — no demo locks
 }
 
 const SHIFTS = {A:{label:'Shift A',time:'07:00–16:00'},B:{label:'Shift B',time:'14:00–23:00'},C:{label:'Shift C',time:'22:00–07:00 (+1)'},OFF:{label:'Day Off',time:'—'}};
@@ -579,7 +602,7 @@ function showReplShift(){
   }
 }
 
-function submitLeave(){
+async function submitLeave(){
   const ds=document.getElementById('leaveDate').value;
   const replId=document.getElementById('leaveReplacement').value;
   const reason=document.getElementById('leaveReason').value.trim();
@@ -598,9 +621,33 @@ function submitLeave(){
   if(staffBlocked){
     showErr('Leave not allowed on this date — you have been specifically blocked by admin.');return;
   }
+  // Re-check locks from Sheets in real-time before submitting
+  if(GAS_URL){
+    errBox.textContent='⏳ Checking with admin…';errBox.style.display='block';
+    try{
+      const r2=await fetch(GAS_URL+'?t='+Date.now());
+      const j2=await r2.json();
+      if(j2.ok&&j2.data){
+        // Update locked ranges and staff blocks from latest Sheets data
+        if(j2.data.lockedRanges) DB.lockedRanges=(j2.data.lockedRanges||[]).map(x=>{
+          ['from','to'].forEach(f=>{if(x[f]&&!/^\d{4}-\d{2}-\d{2}$/.test(x[f])){try{const d=new Date(x[f]);if(!isNaN(d)){x[f]=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}}catch(e){}}});
+          return x;
+        });
+        if(j2.data.staffBlocks) DB.staffLeaveBlocks=j2.data.staffBlocks||[];
+        if(j2.data.leaveRequests) DB.leaveRequests=j2.data.leaveRequests||[];
+        saveLeaveLocal();
+      }
+    }catch(e){}
+    errBox.style.display='none';
+  }
+
+  // Now re-check staff-specific block with fresh data
+  const staffBlockedFresh=(DB.staffLeaveBlocks||[]).some(b=>b.empId===currentUser.id&&ds>=b.from&&ds<=b.to);
+  if(staffBlockedFresh){showErr('Leave not allowed — you have been specifically blocked by admin for this date.');return;}
+
   if(isDateLocked(ds)){
     const r=DB.lockedRanges.find(r=>ds>=r.from&&ds<=r.to);
-    showErr(`Leave not allowed on ${ds}. Reason: ${r?.reason||'Admin restriction'}`);return;
+    showErr('🔒 Leave not allowed on '+ds+'. Reason: '+(r?.reason||'Admin restriction'));return;
   }
   // Check duplicate
   const dup=DB.leaveRequests.find(r=>r.empId===currentUser.id&&r.leaveDate===ds&&r.status!=='rejected');
@@ -611,11 +658,22 @@ function submitLeave(){
     replacementEmpId:replId,status:'pending',submittedOn:today()
   };
   DB.leaveRequests.push(newLR);
-  pushStaffRecord('leaveRequests', 'append', newLR);
   saveLeaveLocal();
 
-  okBox.textContent='✅ Leave request submitted successfully! Admin will review and notify you.';
-  okBox.style.display='block';
+  // Try to push to Google Sheets (required for admin to see it cross-device)
+  if(GAS_URL){
+    okBox.textContent='⏳ Submitting leave request…';
+    okBox.style.display='block';
+    pushStaffRecord('leaveRequests','append',newLR).then(()=>{
+      okBox.textContent='✅ Leave request submitted! Admin has been notified and will review shortly.';
+    }).catch(()=>{
+      okBox.textContent='✅ Saved locally. Note: Admin will see this only when Google Sheets is connected.';
+    });
+  } else {
+    okBox.innerHTML='⚠️ Leave saved on your device only.<br><span style="font-size:12px;opacity:.8">Admin cannot see this request yet. Ask your admin for the Google Sheets URL and enter it on the login screen.</span>';
+    okBox.style.color='var(--orange)';
+    okBox.style.display='block';
+  }
   document.getElementById('leaveDate').value='';
   document.getElementById('leaveReplacement').value='';
   document.getElementById('leaveReason').value='';
@@ -685,12 +743,34 @@ function renderProfile(){
 (async () => {
   // 1. Load local data first (instant)
   const hasLocal = loadLocalStaff();
-  // 2. If Sheets configured, try to refresh from Sheets
+  // 2. If Sheets configured, load fresh data
   if (GAS_URL) {
     const sheetsOk = await loadStaffData();
-    if (sheetsOk) saveLeaveLocal(); // cache to local
+    if (sheetsOk) saveLeaveLocal();
   }
   populateLoginList();
+
+  // 3. Background sync every 60 seconds to keep locks/roster fresh
+  if (GAS_URL) {
+    setInterval(async () => {
+      try {
+        const r = await fetch(GAS_URL + '?t=' + Date.now());
+        const j = await r.json();
+        if (!j.ok || !j.data) return;
+        const d = j.data;
+        // Update locks, blocks, roster, leave statuses silently
+        if (d.lockedRanges)  DB.lockedRanges     = d.lockedRanges;
+        if (d.staffBlocks)   DB.staffLeaveBlocks  = d.staffBlocks;
+        if (d.roster?.length) DB.roster           = d.roster;
+        if (d.leaveRequests) DB.leaveRequests      = d.leaveRequests;
+        if (d.employees?.length) DB.employees     = d.employees;
+        saveLeaveLocal();
+        // If staff is on My Requests tab, refresh it
+        if(currentUser && document.getElementById('view-myrequests').classList.contains('active')) renderMyRequests();
+        if(currentUser && document.getElementById('view-duty').classList.contains('active')) renderDuty();
+      } catch(e) {}
+    }, 60000);
+  }
 })();
 
 </script>
