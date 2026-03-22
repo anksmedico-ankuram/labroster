@@ -270,7 +270,7 @@ hr.d{border:none;border-top:1px solid var(--bdr);margin:18px 0;}
   <div class="hdr-right">
     <div class="hdr-clock" id="clock">--:--:--</div>
     <span id="syncIndicator" style="font-size:11px;font-family:'DM Mono',monospace;padding:4px 10px;background:var(--bg3);border:1px solid var(--bdr);border-radius:var(--r)">⚪ Not connected</span>
-    <button class="btn btn-ghost btn-sm" onclick="loadFromSheets()">↓ Load</button>
+    <button class="btn btn-ghost btn-sm" onclick="loadAllFresh()">↓ Load</button>
     <button class="btn btn-ghost btn-sm" onclick="fullSync()">↑ Sync</button>
     <button class="btn btn-ghost btn-sm" onclick="openModal('addEmpMod')">+ Staff</button>
     <button class="btn btn-acc btn-sm" onclick="openModal('assignMod')">+ Assign Shift</button>
@@ -396,6 +396,7 @@ hr.d{border:none;border-top:1px solid var(--bdr);margin:18px 0;}
         <option value="approved">Approved</option>
         <option value="rejected">Rejected</option>
       </select>
+      <button class="btn btn-ghost btn-sm" onclick="refreshLeaves()">↻ Refresh</button>
     </div>
   </div>
   <div id="leavesList"></div>
@@ -815,6 +816,34 @@ async function apiPost(payload) {
   } catch(e) { return false; }
 }
 
+async function loadAllFresh() {
+  // Full reload from Sheets - replaces all local data
+  setSyncStatus('syncing');
+  showLoader('Loading all data from Google Sheets…');
+  try {
+    const r = await fetch(GAS_URL + '?t=' + Date.now());
+    const j = await r.json();
+    hideLoader();
+    if (!j.ok || !j.data) { setSyncStatus('error'); toast('Load failed', 'err'); return; }
+    const d = j.data;
+    if (d.employees?.length)     DB.employees        = d.employees;
+    if (d.roster?.length)        DB.roster           = d.roster;
+    if (d.leaveRequests)         DB.leaveRequests    = d.leaveRequests;
+    if (d.lockedRanges)          DB.lockedRanges     = d.lockedRanges;
+    if (d.staffBlocks)           DB.staffLeaveBlocks = d.staffBlocks;
+    saveLocal();
+    setSyncStatus('ok');
+    populateDropdowns(); updateStats(); renderDash();
+    // If on leaves page, re-render
+    if(document.getElementById('view-leaves').classList.contains('active')) renderLeaves();
+    toast('✅ All data loaded from Google Sheets', 'ok');
+  } catch(e) {
+    hideLoader();
+    setSyncStatus('error');
+    toast('Load failed: ' + e.message, 'err');
+  }
+}
+
 async function loadFromSheets() {
   if (!GAS_URL) return false;
   setSyncStatus('syncing');
@@ -880,6 +909,51 @@ function showLoader(msg) {
 function hideLoader() { document.getElementById('loaderOverlay').style.display='none'; }
 
 // Save GAS URL
+async function testConnection() {
+  const url = document.getElementById('gasUrlInput').value.trim();
+  const out = document.getElementById('connTestResult');
+  out.style.display = 'block';
+  out.style.color = 'var(--txt2)';
+
+  if (!url) { out.textContent = '❌ No URL entered'; return; }
+  if (!url.startsWith('https://script.google.com')) {
+    out.textContent = '❌ URL must start with https://script.google.com'; return;
+  }
+
+  out.textContent = '⏳ Testing connection…';
+  try {
+    const testUrl = url + '?t=' + Date.now();
+    out.textContent = '⏳ Sending GET request to:\n' + testUrl;
+    const r = await fetch(testUrl);
+    out.textContent += '\n✅ HTTP status: ' + r.status;
+    const text = await r.text();
+    out.textContent += '\n📄 Raw response (first 200 chars):\n' + text.slice(0, 200);
+    try {
+      const j = JSON.parse(text);
+      if (j.ok) {
+        out.textContent += '\n\n✅ SUCCESS! Connected to Google Sheets.';
+        out.textContent += '\nEmployees found: ' + (j.data?.employees?.length || 0);
+        out.style.color = 'var(--green)';
+      } else {
+        out.textContent += '\n\n⚠ Response ok=false. Error: ' + j.error;
+        out.style.color = 'var(--orange)';
+      }
+    } catch(pe) {
+      out.textContent += '\n\n❌ Response is not valid JSON.';
+      out.textContent += '\nThis usually means the script is NOT deployed as a Web App,';
+      out.textContent += '\nor "Who has access" is not set to "Anyone".';
+      out.style.color = 'var(--red)';
+    }
+  } catch(e) {
+    out.textContent = '❌ Network error: ' + e.message;
+    out.textContent += '\n\nPossible causes:';
+    out.textContent += '\n• Script not deployed yet';
+    out.textContent += '\n• URL copied incorrectly';
+    out.textContent += '\n• No internet connection';
+    out.style.color = 'var(--red)';
+  }
+}
+
 function saveGasUrl() {
   const url = document.getElementById('gasUrlInput').value.trim();
   if (!url.startsWith('https://script.google.com')) {
@@ -917,6 +991,32 @@ async function init() {
   populateDropdowns();
   updateStats();
   renderDash();
+
+  // Poll for new leave requests every 30 seconds (when Sheets connected)
+  if (GAS_URL) {
+    setInterval(async () => {
+      // Silent background refresh of leave requests only
+      try {
+        const r = await fetch(GAS_URL + '?t=' + Date.now());
+        const j = await r.json();
+        if (j.ok && j.data?.leaveRequests?.length) {
+          const newLeaves = j.data.leaveRequests;
+          const oldCount = DB.leaveRequests.filter(r=>r.status==='pending').length;
+          DB.leaveRequests = newLeaves;
+          saveLocal();
+          const newCount = DB.leaveRequests.filter(r=>r.status==='pending').length;
+          if (newCount > oldCount) {
+            toast(`🔔 ${newCount - oldCount} new leave request(s) received!`, 'ok');
+            updateStats();
+            // Re-render leaves view if it's currently open
+            if (document.getElementById('view-leaves').classList.contains('active')) {
+              renderLeaves();
+            }
+          }
+        }
+      } catch(e) {}
+    }, 30000);
+  }
 }
 init();
 
@@ -1020,7 +1120,15 @@ function nav(v){
   document.getElementById('view-'+v).classList.add('active');
   const ni=document.querySelector(`.ni[onclick="nav('${v}')"]`);
   if(ni) ni.classList.add('active');
-  const renders={dashboard:renderDash,roster:renderRoster,calendar:renderCalendar,leaves:renderLeaves,lockdays:renderLockDays,staff:renderStaff,settings:()=>{renderSettingsStaff();renderShiftConfig();}};
+  const renders={
+    dashboard:renderDash,
+    roster:renderRoster,
+    calendar:renderCalendar,
+    leaves: async ()=>{ await refreshLeavesQuiet(); renderLeaves(); },
+    lockdays:renderLockDays,
+    staff:renderStaff,
+    settings:()=>{renderSettingsStaff();renderShiftConfig();}
+  };
   if(renders[v]) renders[v]();
   updateStats();
 }
@@ -1188,6 +1296,39 @@ function unlockMonth(){
 }
 
 // ═══ LEAVE REQUESTS ═══
+async function refreshLeavesQuiet(){
+  // Silent background pull - no toast, no loader
+  if(!GAS_URL) return;
+  try{
+    const r=await fetch(GAS_URL+'?t='+Date.now());
+    const j=await r.json();
+    if(j.ok&&j.data){
+      if(j.data.leaveRequests) DB.leaveRequests=j.data.leaveRequests;
+      // Also sync employees and roster while we're at it
+      if(j.data.employees?.length) DB.employees=j.data.employees;
+      if(j.data.roster?.length) DB.roster=j.data.roster;
+      saveLocal();
+      updateStats();
+    }
+  }catch(e){}
+}
+
+async function refreshLeaves(){
+  if(!GAS_URL){toast('Connect Google Sheets to sync leave requests across devices','warn');return;}
+  toast('Refreshing leave requests…');
+  try{
+    const r=await fetch(GAS_URL+'?t='+Date.now());
+    const j=await r.json();
+    if(j.ok&&j.data?.leaveRequests){
+      DB.leaveRequests=j.data.leaveRequests;
+      saveLocal();
+      renderLeaves();
+      updateStats();
+      toast('Leave requests refreshed','ok');
+    }
+  }catch(e){toast('Refresh failed — check Sheets connection','err');}
+}
+
 function renderLeaves(){
   const filter=document.getElementById('lv-filter')?.value||'';
   let reqs=[...DB.leaveRequests].filter(r=>!filter||r.status===filter).sort((a,b)=>a.submittedOn<b.submittedOn?1:-1);
@@ -1828,11 +1969,13 @@ init();
         <label class="fl">Google Apps Script Web App URL</label>
         <input class="fc" id="gasUrlInput" placeholder="https://script.google.com/macros/s/…/exec" value="">
       </div>
-      <div style="display:flex;gap:8px;margin-top:4px">
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <button class="btn btn-acc btn-sm" onclick="testConnection()">🔍 Test Connection</button>
         <button class="btn btn-ghost btn-sm" onclick="initSheets()">① Create Sheets</button>
         <button class="btn btn-ghost btn-sm" onclick="fullSync()">② Push All Data</button>
         <button class="btn btn-ghost btn-sm" onclick="loadFromSheets()">③ Load from Sheets</button>
       </div>
+      <div id="connTestResult" style="margin-top:10px;font-size:12px;font-family:'DM Mono',monospace;display:none;background:var(--bg3);border:1px solid var(--bdr);border-radius:var(--r);padding:10px;line-height:1.8;word-break:break-all"></div>
     </div>
     <div class="mf">
       <button class="btn btn-ghost" onclick="closeModal('connectMod')">Cancel</button>
