@@ -270,6 +270,7 @@ hr.d{border:none;border-top:1px solid var(--bdr);margin:18px 0;}
   <div class="hdr-right">
     <div class="hdr-clock" id="clock">--:--:--</div>
     <span id="syncIndicator" style="font-size:11px;font-family:'DM Mono',monospace;padding:4px 10px;background:var(--bg3);border:1px solid var(--bdr);border-radius:var(--r)">⚪ Not connected</span>
+    <span id="lastSyncTime" style="font-size:10px;font-family:'DM Mono',monospace;color:var(--txt3)"></span>
     <button class="btn btn-ghost btn-sm" onclick="loadAllFresh()">↓ Load</button>
     <button class="btn btn-ghost btn-sm" onclick="fullSync()">↑ Sync</button>
     <button class="btn btn-ghost btn-sm" onclick="openModal('addEmpMod')">+ Staff</button>
@@ -1032,30 +1033,72 @@ async function init() {
   updateStats();
   renderDash();
 
-  // Poll for new leave requests every 30 seconds (when Sheets connected)
+  // ── Smart auto-sync when Sheets connected ──
   if (GAS_URL) {
-    setInterval(async () => {
-      // Silent background refresh of leave requests only
+    let lastSyncTime = Date.now();
+    let syncInProgress = false;
+
+    async function backgroundSync() {
+      if (syncInProgress) return;
+      if (!GAS_URL) return;
+      syncInProgress = true;
       try {
         const r = await fetch(GAS_URL + '?t=' + Date.now());
         const j = await r.json();
-        if (j.ok && j.data?.leaveRequests?.length) {
-          const newLeaves = j.data.leaveRequests;
-          const oldCount = DB.leaveRequests.filter(r=>r.status==='pending').length;
-          DB.leaveRequests = newLeaves;
-          saveLocal();
-          const newCount = DB.leaveRequests.filter(r=>r.status==='pending').length;
-          if (newCount > oldCount) {
-            toast(`🔔 ${newCount - oldCount} new leave request(s) received!`, 'ok');
-            updateStats();
-            // Re-render leaves view if it's currently open
-            if (document.getElementById('view-leaves').classList.contains('active')) {
-              renderLeaves();
-            }
-          }
+        if (!j.ok || !j.data) return;
+        const d = j.data;
+
+        // Check for new pending leaves
+        const oldPending = DB.leaveRequests.filter(x=>x.status==='pending').length;
+
+        // Update all data
+        if (d.employees?.length)  DB.employees   = d.employees.map(e=>fixDateField(e,['joinDate']));
+        if (d.roster?.length)     DB.roster      = d.roster.map(r=>fixDateField(r,['date']));
+        if (d.leaveRequests)      DB.leaveRequests = d.leaveRequests.map(lr=>fixDateField(lr,['leaveDate','submittedOn']));
+        if (d.lockedRanges)       DB.lockedRanges  = d.lockedRanges.map(lk=>fixDateField(lk,['from','to','addedOn']));
+        if (d.staffBlocks)        DB.staffLeaveBlocks = d.staffBlocks.map(b=>fixDateField(b,['from','to']));
+
+        saveLocal();
+        lastSyncTime = Date.now();
+
+        // Update last-synced timestamp in header
+        const ts = document.getElementById('lastSyncTime');
+        if (ts) ts.textContent = 'Updated ' + new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+
+        // Notify if new leaves arrived
+        const newPending = DB.leaveRequests.filter(x=>x.status==='pending').length;
+        if (newPending > oldPending) {
+          const diff = newPending - oldPending;
+          toast('🔔 ' + diff + ' new leave request' + (diff>1?'s':'') + ' received!', 'ok');
+          updateStats();
+          if (document.getElementById('view-leaves').classList.contains('active')) renderLeaves();
+          if (document.getElementById('view-dashboard').classList.contains('active')) renderDash();
+        } else {
+          // Silently update stats and current view
+          updateStats();
+          const activeView = document.querySelector('.view.active')?.id?.replace('view-','');
+          if (activeView === 'dashboard') renderDash();
+          else if (activeView === 'roster') renderRoster();
         }
-      } catch(e) {}
-    }, 30000);
+
+        setSyncStatus('ok');
+      } catch(e) {
+        setSyncStatus('error');
+      } finally {
+        syncInProgress = false;
+      }
+    }
+
+    // Poll every 15 seconds — safe within Google's quota even with 20 users
+    // 20 users × 4 polls/min × 60 min × 8 hours = 38,400 requests/day — well within 20,000 per user
+    setInterval(backgroundSync, 15000);
+
+    // Also sync immediately when tab becomes visible again (user switches back)
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && Date.now() - lastSyncTime > 10000) {
+        backgroundSync();
+      }
+    });
   }
 }
 init();
