@@ -826,11 +826,11 @@ async function loadAllFresh() {
     hideLoader();
     if (!j.ok || !j.data) { setSyncStatus('error'); toast('Load failed', 'err'); return; }
     const d = j.data;
-    if (d.employees?.length)     DB.employees        = d.employees;
-    if (d.roster?.length)        DB.roster           = d.roster;
-    if (d.leaveRequests)         DB.leaveRequests    = d.leaveRequests;
-    if (d.lockedRanges)          DB.lockedRanges     = d.lockedRanges;
-    if (d.staffBlocks)           DB.staffLeaveBlocks = d.staffBlocks;
+    if (d.employees?.length)     DB.employees        = d.employees.map(e=>fixDateField(e,['joinDate']));
+    if (d.roster?.length)        DB.roster           = d.roster.map(r=>fixDateField(r,['date']));
+    if (d.leaveRequests)         DB.leaveRequests    = d.leaveRequests.map(lr=>fixDateField(lr,['leaveDate','submittedOn']));
+    if (d.lockedRanges)          DB.lockedRanges     = d.lockedRanges.map(lk=>fixDateField(lk,['from','to','addedOn']));
+    if (d.staffBlocks)           DB.staffLeaveBlocks = d.staffBlocks.map(b=>fixDateField(b,['from','to']));
     saveLocal();
     setSyncStatus('ok');
     populateDropdowns(); updateStats(); renderDash();
@@ -844,16 +844,35 @@ async function loadAllFresh() {
   }
 }
 
+function fixDateField(obj, fields) {
+  // Normalize any date field to YYYY-MM-DD
+  fields.forEach(f => {
+    if (obj[f] && !/^\d{4}-\d{2}-\d{2}$/.test(obj[f])) {
+      try {
+        const d = new Date(obj[f]);
+        if (!isNaN(d.getTime())) {
+          const y = d.getFullYear();
+          const m = String(d.getMonth()+1).padStart(2,'0');
+          const day = String(d.getDate()).padStart(2,'0');
+          obj[f] = y + '-' + m + '-' + day;
+        }
+      } catch(e) {}
+    }
+  });
+  return obj;
+}
+
 async function loadFromSheets() {
   if (!GAS_URL) return false;
   setSyncStatus('syncing');
   const data = await apiGet();
   if (!data || !data.employees?.length) { setSyncStatus('error'); return false; }
-  DB.employees          = data.employees;
-  DB.roster             = data.roster        || [];
-  DB.leaveRequests      = data.leaveRequests || [];
-  DB.lockedRanges       = data.lockedRanges  || [];
-  DB.staffLeaveBlocks   = data.staffBlocks   || [];
+  // Fix any bad date formats coming from Sheets
+  DB.employees     = (data.employees||[]).map(e=>fixDateField(e,['joinDate']));
+  DB.roster        = (data.roster||[]).map(r=>fixDateField(r,['date']));
+  DB.leaveRequests = (data.leaveRequests||[]).map(lr=>fixDateField(lr,['leaveDate','submittedOn']));
+  DB.lockedRanges  = (data.lockedRanges||[]).map(lk=>fixDateField(lk,['from','to','addedOn']));
+  DB.staffLeaveBlocks = (data.staffBlocks||[]).map(b=>fixDateField(b,['from','to']));
   setSyncStatus('ok');
   return true;
 }
@@ -909,6 +928,27 @@ function showLoader(msg) {
 function hideLoader() { document.getElementById('loaderOverlay').style.display='none'; }
 
 // Save GAS URL
+async function fixSheetsData() {
+  // Fix corrupted date values in all sheets
+  if (!GAS_URL) { toast('Connect Sheets first', 'warn'); return; }
+  showLoader('Fixing date formats in Google Sheets…');
+  const sheets = ['leaveRequests','roster','lockedRanges','staffBlocks','employees'];
+  let fixed = 0;
+  for (const s of sheets) {
+    try {
+      const r = await fetch(GAS_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'fixDates', sheet: s }),
+        headers: { 'Content-Type': 'text/plain' }
+      });
+      const j = await r.json();
+      if (j.ok) fixed++;
+    } catch(e) {}
+  }
+  hideLoader();
+  toast('Fixed dates in ' + fixed + ' sheets. Now click ③ Load from Sheets.', 'ok');
+}
+
 async function testConnection() {
   const url = document.getElementById('gasUrlInput').value.trim();
   const out = document.getElementById('connTestResult');
@@ -1303,10 +1343,9 @@ async function refreshLeavesQuiet(){
     const r=await fetch(GAS_URL+'?t='+Date.now());
     const j=await r.json();
     if(j.ok&&j.data){
-      if(j.data.leaveRequests) DB.leaveRequests=j.data.leaveRequests;
-      // Also sync employees and roster while we're at it
-      if(j.data.employees?.length) DB.employees=j.data.employees;
-      if(j.data.roster?.length) DB.roster=j.data.roster;
+      if(j.data.leaveRequests) DB.leaveRequests=j.data.leaveRequests.map(lr=>fixDateField(lr,['leaveDate','submittedOn']));
+      if(j.data.employees?.length) DB.employees=j.data.employees.map(e=>fixDateField(e,['joinDate']));
+      if(j.data.roster?.length) DB.roster=j.data.roster.map(r=>fixDateField(r,['date']));
       saveLocal();
       updateStats();
     }
@@ -1973,7 +2012,8 @@ init();
         <button class="btn btn-acc btn-sm" onclick="testConnection()">🔍 Test Connection</button>
         <button class="btn btn-ghost btn-sm" onclick="initSheets()">① Create Sheets</button>
         <button class="btn btn-ghost btn-sm" onclick="fullSync()">② Push All Data</button>
-        <button class="btn btn-ghost btn-sm" onclick="loadFromSheets()">③ Load from Sheets</button>
+        <button class="btn btn-ghost btn-sm" onclick="loadAllFresh()">③ Load from Sheets</button>
+        <button class="btn btn-warn btn-sm" onclick="fixSheetsData()">🔧 Fix Bad Dates</button>
       </div>
       <div id="connTestResult" style="margin-top:10px;font-size:12px;font-family:'DM Mono',monospace;display:none;background:var(--bg3);border:1px solid var(--bdr);border-radius:var(--r);padding:10px;line-height:1.8;word-break:break-all"></div>
     </div>
