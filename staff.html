@@ -297,12 +297,33 @@ async function pushStaffRecord(sheetKey, action, row, id) {
 
 
 // ═══ SHARED DB ═══
-// We reference window.DB set by admin.html if opened from it, else use local seed
+const LS_KEY = 'ankuram_labroster_v1';
+
+function loadLocalStaff() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw);
+    return d.employees?.length ? d : null;
+  } catch(e) { return null; }
+}
+
+function saveLocalLeave() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    const existing = raw ? JSON.parse(raw) : {};
+    existing.leaveRequests = DB.leaveRequests;
+    localStorage.setItem(LS_KEY, JSON.stringify(existing));
+  } catch(e) {}
+}
+
+// Load from localStorage first, fall back to built-in seed
+const _savedData = loadLocalStaff();
+
 let DB = window.opener?.DB || window.DB;
 if (!DB) {
-  // Stand-alone seed for staff portal when opened independently
   DB = {
-    employees: [
+    employees: _savedData?.employees || [
       {id:'LAB-001',name:'Dr. Priya Sharma',role:'Lab Technician',dept:'Lab Operations',contact:'9876543001',pin:'1234',preferredShift:'A',joinDate:'2023-01-01'},
       {id:'LAB-002',name:'Rahul Mishra',role:'Senior Technician',dept:'Lab Operations',contact:'9876543002',pin:'2345',preferredShift:'B',joinDate:'2023-01-01'},
       {id:'LAB-003',name:'Anita Verma',role:'Sample Collector',dept:'Sample Collection',contact:'9876543003',pin:'3456',preferredShift:'C',joinDate:'2023-01-01'},
@@ -316,8 +337,10 @@ if (!DB) {
       {id:'LAB-011',name:'Sunita Pandey',role:'Sample Collector',dept:'Sample Collection',contact:'9876543011',pin:'1122',preferredShift:'B',joinDate:'2023-01-01'},
       {id:'LAB-012',name:'Rohit Srivastava',role:'Lab Technician',dept:'Lab Operations',contact:'9876543012',pin:'2233',preferredShift:'C',joinDate:'2023-01-01'},
     ],
-    roster: [],
-    leaveRequests: [],
+    roster: _savedData?.roster || [],
+    leaveRequests: _savedData?.leaveRequests || [],
+    lockedRanges: _savedData?.lockedRanges || [],
+    staffLeaveBlocks: _savedData?.staffBlocks || [],
     lockedRanges: [],
   };
   // Seed roster
@@ -587,6 +610,7 @@ function submitLeave(){
   };
   DB.leaveRequests.push(newLR);
   pushStaffRecord('leaveRequests', 'append', newLR);
+  saveLocalLeave();
 
   okBox.textContent='✅ Leave request submitted successfully! Admin will review and notify you.';
   okBox.style.display='block';
@@ -656,7 +680,13 @@ function renderProfile(){
 }
 
 // ═══ INIT ═══
-
+(async () => {
+  // 1. Try Sheets
+  const sheetsOk = await loadStaffData();
+  // 2. If Sheets loaded, it already overwrote DB - nothing more needed
+  // (localStorage fallback already applied above at DB init time)
+  populateLoginList();
+})();
 </script>
 </body>
 </html>
