@@ -724,21 +724,82 @@ hr.d{border:none;border-top:1px solid var(--bdr);margin:18px 0;}
 <div class="tc" id="toastC"></div>
 
 <script>
-// ═══════════════════════════════════════════════════════
-//  GOOGLE SHEETS API LAYER  —  Ankuram Labs LabRoster Pro
-// ═══════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════
+//  ANKURAM LABS LABROSTER  —  STORAGE ENGINE
+//  Priority: 1) localStorage  2) Google Sheets  3) blank start
+// ════════════════════════════════════════════════════════════
 
-// ── PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE ──
 const GAS_URL = localStorage.getItem('gasUrl') || '';
+const LS_KEY  = 'ankuram_v2';
 
-// ── API helpers ──
+// ── syncStatus indicator ──
+let syncStatus = 'local';
+function setSyncStatus(s) {
+  syncStatus = s;
+  const el = document.getElementById('syncIndicator');
+  if (!el) return;
+  const map = {
+    offline: { text: '⚪ Offline',         color: 'var(--txt3)' },
+    syncing: { text: '🔄 Syncing…',        color: 'var(--orange)' },
+    ok:      { text: '🟢 Sheets synced',   color: 'var(--green)' },
+    error:   { text: '🔴 Sheets error',    color: 'var(--red)' },
+    local:   { text: '🟡 Saved locally',   color: 'var(--acc)' },
+  };
+  const m = map[s] || map.local;
+  el.textContent = m.text;
+  el.style.color  = m.color;
+}
+
+// ── SAVE to localStorage — called after every change ──
+function saveLocal() {
+  try {
+    const snapshot = {
+      employees:    DB.employees,
+      roster:       DB.roster,
+      leaveRequests:DB.leaveRequests,
+      lockedRanges: DB.lockedRanges,
+      staffBlocks:  DB.staffLeaveBlocks || [],
+      ts: Date.now()
+    };
+    localStorage.setItem(LS_KEY, JSON.stringify(snapshot));
+    setSyncStatus('local');
+  } catch(e) {
+    console.error('saveLocal error:', e);
+  }
+}
+
+// Call this after every data mutation
+function autoSave() { saveLocal(); }
+
+// ── LOAD from localStorage ──
+function loadLocal() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return false;
+    const d = JSON.parse(raw);
+    // Only load if we actually have employee data saved
+    if (!d.employees || d.employees.length === 0) return false;
+    DB.employees          = d.employees;
+    DB.roster             = d.roster       || [];
+    DB.leaveRequests      = d.leaveRequests|| [];
+    DB.lockedRanges       = d.lockedRanges || [];
+    DB.staffLeaveBlocks   = d.staffBlocks  || [];
+    console.log('[LabRoster] Loaded', d.employees.length, 'staff from localStorage');
+    return true;
+  } catch(e) {
+    console.error('loadLocal error:', e);
+    return false;
+  }
+}
+
+// ── Google Sheets helpers (optional — only used if URL configured) ──
 async function apiGet() {
   if (!GAS_URL) return null;
   try {
-    const r = await fetch(GAS_URL + '?t=' + Date.now(), { method: 'GET' });
-    const json = await r.json();
-    return json.ok ? json.data : null;
-  } catch(e) { console.warn('apiGet failed:', e); return null; }
+    const r = await fetch(GAS_URL + '?t=' + Date.now());
+    const j = await r.json();
+    return j.ok ? j.data : null;
+  } catch(e) { return null; }
 }
 
 async function apiPost(payload) {
@@ -747,131 +808,117 @@ async function apiPost(payload) {
     const r = await fetch(GAS_URL, {
       method: 'POST',
       body: JSON.stringify(payload),
-      headers: { 'Content-Type': 'text/plain' } // avoids preflight CORS
+      headers: { 'Content-Type': 'text/plain' }
     });
-    const json = await r.json();
-    return json.ok !== false;
-  } catch(e) { console.warn('apiPost failed:', e); return false; }
+    const j = await r.json();
+    return j.ok !== false;
+  } catch(e) { return false; }
 }
 
-// ── Sync state ──
-let syncStatus = 'offline'; // 'offline' | 'syncing' | 'ok' | 'error'
-let pendingWrites = []; // queue writes when offline
-
-function setSyncStatus(s) {
-  syncStatus = s;
-  const el = document.getElementById('syncIndicator');
-  if (!el) return;
-  const map = {
-    offline:  { text: '⚪ Not connected',    color: 'var(--txt3)' },
-    syncing:  { text: '🔄 Syncing…',          color: 'var(--orange)' },
-    ok:       { text: '🟢 Synced',             color: 'var(--green)' },
-    error:    { text: '🔴 Sync error',         color: 'var(--red)' },
-    local:    { text: '🟡 Saved locally',      color: 'var(--acc)' },
-  };
-  const m = map[s] || map.offline;
-  el.textContent = m.text;
-  el.style.color = m.color;
-}
-
-// ── Load all data from Sheets ──
 async function loadFromSheets() {
-  if (!GAS_URL) { setSyncStatus('offline'); return false; }
+  if (!GAS_URL) return false;
   setSyncStatus('syncing');
-  showLoader('Loading from Google Sheets…');
   const data = await apiGet();
-  hideLoader();
-  if (!data) { setSyncStatus('error'); toast('Could not load from Google Sheets', 'err'); return false; }
-
-  if (data.employees?.length)    DB.employees    = data.employees;
-  if (data.roster?.length)       DB.roster       = data.roster;
-  if (data.leaveRequests?.length)DB.leaveRequests= data.leaveRequests;
-  if (data.lockedRanges?.length) DB.lockedRanges = data.lockedRanges;
-  if (data.staffBlocks?.length)  DB.staffLeaveBlocks = data.staffBlocks;
-
+  if (!data || !data.employees?.length) { setSyncStatus('error'); return false; }
+  DB.employees          = data.employees;
+  DB.roster             = data.roster        || [];
+  DB.leaveRequests      = data.leaveRequests || [];
+  DB.lockedRanges       = data.lockedRanges  || [];
+  DB.staffLeaveBlocks   = data.staffBlocks   || [];
   setSyncStatus('ok');
-  updateStats(); renderDash(); populateDropdowns();
-  toast('Data loaded from Google Sheets', 'ok');
   return true;
 }
 
-// ── Push a single record to Sheets ──
-async function pushRecord(sheetKey, action, row, id) {
-  if (!GAS_URL) { setSyncStatus('local'); return; }
-  setSyncStatus('syncing');
-  const ok = await apiPost({ action, sheet: sheetKey, row, id });
-  setSyncStatus(ok ? 'ok' : 'error');
-  if (!ok) {
-    pendingWrites.push({ sheetKey, action, row, id });
-    toast('Saved locally — will sync when connected', 'warn');
-  }
-}
-
-// ── Full sync (push everything) ──
 async function fullSync() {
-  if (!GAS_URL) { toast('Enter your Google Sheets API URL in Settings first', 'warn'); return; }
+  if (!GAS_URL) { toast('Configure Google Sheets URL in Settings first', 'warn'); return; }
   setSyncStatus('syncing');
-  showLoader('Syncing all data to Google Sheets…');
-  let ok = true;
+  showLoader('Syncing to Google Sheets…');
   const ops = [
-    { key: 'employees',     data: DB.employees },
-    { key: 'roster',        data: DB.roster },
-    { key: 'leaveRequests', data: DB.leaveRequests },
-    { key: 'lockedRanges',  data: DB.lockedRanges },
-    { key: 'staffBlocks',   data: DB.staffLeaveBlocks || [] },
+    { key:'employees',     data:DB.employees },
+    { key:'roster',        data:DB.roster },
+    { key:'leaveRequests', data:DB.leaveRequests },
+    { key:'lockedRanges',  data:DB.lockedRanges },
+    { key:'staffBlocks',   data:DB.staffLeaveBlocks||[] },
   ];
+  let ok = true;
   for (const op of ops) {
-    const res = await apiPost({ action: 'bulkReplace', sheet: op.key, rows: op.data });
-    if (!res) { ok = false; break; }
+    if (!await apiPost({ action:'bulkReplace', sheet:op.key, rows:op.data })) { ok=false; break; }
   }
   hideLoader();
   setSyncStatus(ok ? 'ok' : 'error');
-  toast(ok ? '✅ Full sync complete' : '❌ Sync failed — check URL', ok ? 'ok' : 'err');
+  toast(ok ? '✅ Synced to Google Sheets' : '❌ Sync failed', ok ? 'ok' : 'err');
 }
 
-// ── Init Sheets structure ──
 async function initSheets() {
-  if (!GAS_URL) { toast('Enter API URL first', 'warn'); return; }
-  setSyncStatus('syncing');
-  showLoader('Creating sheets in Google Sheets…');
-  const ok = await apiPost({ action: 'initSheets', sheet: 'employees' });
+  if (!GAS_URL) { toast('Enter URL first', 'warn'); return; }
+  showLoader('Creating sheets…');
+  const ok = await apiPost({ action:'initSheets', sheet:'employees' });
   hideLoader();
-  setSyncStatus(ok ? 'ok' : 'error');
-  toast(ok ? '✅ Sheets created! Now click Full Sync.' : '❌ Failed — check URL', ok ? 'ok' : 'err');
+  toast(ok ? '✅ Sheets created — now click Full Sync' : '❌ Failed', ok?'ok':'err');
 }
 
-// ── Loader overlay ──
+// Stub — push individual records to sheets (best effort, localStorage is primary)
+function pushRecord(k,a,r,id) { if(GAS_URL) apiPost({action:a,sheet:k,row:r,id}); }
+function afterAddEmployee(e)    { pushRecord('employees','append',e); }
+function afterUpdateEmployee(e) { pushRecord('employees','update',e,e.id); }
+function afterDeleteEmployee(id){ pushRecord('employees','delete',null,id); }
+function afterAddRoster(r)      { pushRecord('roster','append',r); }
+function afterUpdateRoster(r)   { pushRecord('roster','update',r,r.id); }
+function afterDeleteRoster(id)  { pushRecord('roster','delete',null,id); }
+function afterAddLeave(lr)      { pushRecord('leaveRequests','append',lr); }
+function afterUpdateLeave(lr)   { pushRecord('leaveRequests','update',lr,lr.id); }
+function afterAddLock(lk)       { pushRecord('lockedRanges','append',lk); }
+function afterDeleteLock(id)    { pushRecord('lockedRanges','delete',null,id); }
+function afterAddStaffBlock(b)  { pushRecord('staffBlocks','append',b); }
+function afterDeleteStaffBlock(id){ pushRecord('staffBlocks','delete',null,id); }
+
+// Loader overlay
 function showLoader(msg) {
-  document.getElementById('loaderMsg').textContent = msg || 'Please wait…';
-  document.getElementById('loaderOverlay').style.display = 'flex';
+  document.getElementById('loaderMsg').textContent = msg||'Please wait…';
+  document.getElementById('loaderOverlay').style.display='flex';
 }
-function hideLoader() {
-  document.getElementById('loaderOverlay').style.display = 'none';
-}
+function hideLoader() { document.getElementById('loaderOverlay').style.display='none'; }
 
-// ── Save GAS URL ──
+// Save GAS URL
 function saveGasUrl() {
   const url = document.getElementById('gasUrlInput').value.trim();
   if (!url.startsWith('https://script.google.com')) {
-    toast('Invalid URL — must start with https://script.google.com', 'err'); return;
+    toast('Invalid URL','err'); return;
   }
   localStorage.setItem('gasUrl', url);
   location.reload();
 }
 
-// ── Auto-save hooks (call these after every data mutation) ──
-function afterAddEmployee(emp)    { pushRecord('employees', 'append', emp); }
-function afterUpdateEmployee(emp) { pushRecord('employees', 'update', emp, emp.id); }
-function afterDeleteEmployee(id)  { pushRecord('employees', 'delete', null, id); }
-function afterAddRoster(r)        { pushRecord('roster', 'append', r); }
-function afterUpdateRoster(r)     { pushRecord('roster', 'update', r, r.id); }
-function afterDeleteRoster(id)    { pushRecord('roster', 'delete', null, id); }
-function afterAddLeave(lr)        { pushRecord('leaveRequests', 'append', lr); }
-function afterUpdateLeave(lr)     { pushRecord('leaveRequests', 'update', lr, lr.id); }
-function afterAddLock(lk)         { pushRecord('lockedRanges', 'append', lk); }
-function afterDeleteLock(id)      { pushRecord('lockedRanges', 'delete', null, id); }
-function afterAddStaffBlock(b)    { pushRecord('staffBlocks', 'append', b); }
-function afterDeleteStaffBlock(id){ pushRecord('staffBlocks', 'delete', null, id); }
+// ════════════════════════════════════════════════════════════
+//  INIT — runs on every page load
+// ════════════════════════════════════════════════════════════
+async function init() {
+  // Step 1: Always load from localStorage FIRST (instant, no network needed)
+  const hasLocal = loadLocal();
+
+  // Step 2: If no local data AND Sheets configured, try loading from Sheets
+  if (!hasLocal && GAS_URL) {
+    showLoader('Loading data…');
+    const sheetsOk = await loadFromSheets();
+    hideLoader();
+    if (sheetsOk) {
+      saveLocal(); // cache sheets data to localStorage
+    } else {
+      // No local, no sheets — start blank (no seed data)
+    }
+  } else if (hasLocal && GAS_URL) {
+    // Have local data, optionally refresh from Sheets in background
+    setSyncStatus('local');
+  } else if (!hasLocal && !GAS_URL) {
+    // Truly first run with no Sheets — stay blank, don't seed fake data
+    setSyncStatus('offline');
+  }
+
+  populateDropdowns();
+  updateStats();
+  renderDash();
+}
+init();
 
 
 // ═══ SHARED DATA STORE ═══
@@ -1732,42 +1779,7 @@ function clearAllLeaves(){if(!confirm('Delete ALL leave requests?'))return;DB.le
 function clearAllLocks(){if(!confirm('Remove ALL date locks?'))return;DB.lockedRanges=[];updateStats();toast('All locks removed','warn');}
 
 // ═══ LOCAL STORAGE PERSISTENCE ═══
-const LS_KEY = 'ankuram_labroster_v1';
 
-function saveLocal() {
-  try {
-    localStorage.setItem(LS_KEY, JSON.stringify({
-      employees:    DB.employees,
-      roster:       DB.roster,
-      leaveRequests:DB.leaveRequests,
-      lockedRanges: DB.lockedRanges,
-      staffBlocks:  DB.staffLeaveBlocks || [],
-      savedAt:      new Date().toISOString()
-    }));
-  } catch(e) { console.warn('saveLocal failed:', e); }
-}
-
-function loadLocal() {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return false;
-    const d = JSON.parse(raw);
-    if (d.employees?.length)     DB.employees          = d.employees;
-    if (d.roster?.length)        DB.roster             = d.roster;
-    if (d.leaveRequests?.length) DB.leaveRequests      = d.leaveRequests;
-    if (d.lockedRanges?.length)  DB.lockedRanges       = d.lockedRanges;
-    if (d.staffBlocks?.length)   DB.staffLeaveBlocks   = d.staffBlocks;
-    console.log('Loaded from localStorage, saved:', d.savedAt);
-    return true;
-  } catch(e) { console.warn('loadLocal failed:', e); return false; }
-}
-
-// Auto-save after every data mutation
-function autoSave() {
-  saveLocal();
-  // also push to Sheets if connected
-  setSyncStatus(GAS_URL ? 'ok' : 'local');
-}
 
 // ═══ INIT ═══
 async function init() {
@@ -1791,7 +1803,6 @@ async function init() {
   populateDropdowns(); updateStats(); renderDash();
 }
 init();
-
 </script>
 <!-- Loader Overlay -->
 <div id="loaderOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;align-items:center;justify-content:center;flex-direction:column;gap:16px">
