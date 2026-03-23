@@ -727,378 +727,367 @@ hr.d{border:none;border-top:1px solid var(--bdr);margin:18px 0;}
 
 <script>
 // ════════════════════════════════════════════════════════════
-//  ANKURAM LABS LABROSTER  —  STORAGE ENGINE
-//  Priority: 1) localStorage  2) Google Sheets  3) blank start
+//  ANKURAM LABS LABROSTER — STORAGE ENGINE v4
+//  Rule: Google Sheets is the ONLY source of truth when connected.
+//  localStorage is used ONLY as a fast startup cache — never as
+//  the primary store. Every write goes to Sheets first, then cache.
 // ════════════════════════════════════════════════════════════
 
 const GAS_URL = localStorage.getItem('gasUrl') || '';
-const LS_KEY  = 'ankuram_v2';
+const LS_KEY  = 'ankuram_v3'; // fresh key — no conflict with old data
 
-// ── syncStatus indicator ──
-let syncStatus = 'local';
+// ── Sync status ──
+let syncStatus = 'offline';
 function setSyncStatus(s) {
   syncStatus = s;
   const el = document.getElementById('syncIndicator');
   if (!el) return;
   const map = {
-    offline: { text: '⚪ Offline',         color: 'var(--txt3)' },
+    offline: { text: '⚪ No Sheets',       color: 'var(--txt3)' },
     syncing: { text: '🔄 Syncing…',        color: 'var(--orange)' },
     ok:      { text: '🟢 Sheets synced',   color: 'var(--green)' },
     error:   { text: '🔴 Sheets error',    color: 'var(--red)' },
-    local:   { text: '🟡 Saved locally',   color: 'var(--acc)' },
+    local:   { text: '🟡 Local only',      color: 'var(--acc)' },
   };
-  const m = map[s] || map.local;
+  const m = map[s] || map.offline;
   el.textContent = m.text;
-  el.style.color  = m.color;
+  el.style.color = m.color;
 }
 
-// ── SAVE to localStorage — called after every change ──
-function saveLocal() {
+// ── Date normalizer ──
+function normDate(v) {
+  if (!v || v === '') return '';
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
   try {
-    const snapshot = {
-      employees:    DB.employees,
-      roster:       DB.roster,
-      leaveRequests:DB.leaveRequests,
-      lockedRanges: DB.lockedRanges,
-      staffBlocks:  DB.staffLeaveBlocks || [],
-      ts: Date.now()
-    };
-    localStorage.setItem(LS_KEY, JSON.stringify(snapshot));
-    setSyncStatus('local');
-  } catch(e) {
-    console.error('saveLocal error:', e);
-  }
+    const d = new Date(v);
+    if (!isNaN(d.getTime())) {
+      return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    }
+  } catch(e) {}
+  return String(v);
 }
 
-// Call this after every data mutation
-function autoSave() { saveLocal(); persistShiftConfig(); }
+function normRecord(rec, dateFields) {
+  const r = {...rec};
+  dateFields.forEach(f => { if (r[f]) r[f] = normDate(r[f]); });
+  return r;
+}
 
-// ── LOAD from localStorage ──
-function loadLocal() {
+// ── Parse Sheets response into clean DB ──
+function parseSheets(data) {
+  return {
+    employees:        (data.employees     ||[]).map(e=>normRecord(e,['joinDate'])),
+    roster:           (data.roster        ||[]).map(r=>normRecord(r,['date'])),
+    leaveRequests:    (data.leaveRequests ||[]).map(l=>normRecord(l,['leaveDate','submittedOn'])),
+    lockedRanges:     (data.lockedRanges  ||[]).map(l=>normRecord(l,['from','to','addedOn'])),
+    staffLeaveBlocks: (data.staffBlocks   ||[]).map(b=>normRecord(b,['from','to'])),
+  };
+}
+
+// ── localStorage cache (startup only, never primary) ──
+function cacheToLocal(db) {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify({...db, ts: Date.now()}));
+  } catch(e) {}
+}
+
+function loadFromCache() {
   try {
     const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return false;
+    if (!raw) return null;
     const d = JSON.parse(raw);
-    // Only load if we actually have employee data saved
-    if (!d.employees || d.employees.length === 0) return false;
-    DB.employees          = d.employees;
-    DB.roster             = d.roster       || [];
-    DB.leaveRequests      = d.leaveRequests|| [];
-    DB.lockedRanges       = d.lockedRanges || [];
-    DB.staffLeaveBlocks   = d.staffBlocks  || [];
-    console.log('[LabRoster] Loaded', d.employees.length, 'staff from localStorage');
-    return true;
-  } catch(e) {
-    console.error('loadLocal error:', e);
-    return false;
-  }
-}
-
-// ── Google Sheets helpers (optional — only used if URL configured) ──
-async function apiGet() {
-  if (!GAS_URL) return null;
-  try {
-    const r = await fetch(GAS_URL + '?t=' + Date.now());
-    const j = await r.json();
-    return j.ok ? j.data : null;
+    // Reject cache older than 10 minutes — force fresh Sheets load
+    if (Date.now() - (d.ts||0) > 600000) { localStorage.removeItem(LS_KEY); return null; }
+    if (!d.employees?.length) return null;
+    return {
+      employees:        d.employees        || [],
+      roster:           d.roster           || [],
+      leaveRequests:    d.leaveRequests    || [],
+      lockedRanges:     d.lockedRanges     || [],
+      staffLeaveBlocks: d.staffLeaveBlocks || [],
+    };
   } catch(e) { return null; }
 }
 
-async function apiPost(payload) {
-  if (!GAS_URL) return false;
-  try {
-    const r = await fetch(GAS_URL, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-      headers: { 'Content-Type': 'text/plain' }
-    });
-    const j = await r.json();
-    return j.ok !== false;
-  } catch(e) { return false; }
+// ── Core Sheets API ──
+async function sheetsGet() {
+  const r = await fetch(GAS_URL + '?t=' + Date.now());
+  const j = await r.json();
+  if (!j.ok) throw new Error(j.error || 'Sheets GET failed');
+  return parseSheets(j.data);
 }
 
-async function loadAllFresh() {
-  // Full reload from Sheets - replaces all local data
+async function sheetsPost(payload) {
+  const r = await fetch(GAS_URL, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    headers: { 'Content-Type': 'text/plain' }
+  });
+  const j = await r.json();
+  if (!j.ok) throw new Error(j.error || 'Sheets POST failed');
+  return j;
+}
+
+// ── Write to Sheets then refresh ──
+// This is the ONLY way data gets written — no optimistic local updates
+async function sheetsWrite(action, sheetKey, row, id) {
+  if (!GAS_URL) { autoSave(); return; } // no Sheets — just save locally
   setSyncStatus('syncing');
-  showLoader('Loading all data from Google Sheets…');
   try {
-    const r = await fetch(GAS_URL + '?t=' + Date.now());
-    const j = await r.json();
-    hideLoader();
-    if (!j.ok || !j.data) { setSyncStatus('error'); toast('Load failed', 'err'); return; }
-    const d = j.data;
-    if (d.employees?.length)     DB.employees        = d.employees.map(e=>fixDateField(e,['joinDate']));
-    if (d.roster?.length)        DB.roster           = d.roster.map(r=>fixDateField(r,['date']));
-    if (d.leaveRequests)         DB.leaveRequests    = d.leaveRequests.map(lr=>fixDateField(lr,['leaveDate','submittedOn']));
-    if (d.lockedRanges)          DB.lockedRanges     = d.lockedRanges.map(lk=>fixDateField(lk,['from','to','addedOn']));
-    if (d.staffBlocks)           DB.staffLeaveBlocks = d.staffBlocks.map(b=>fixDateField(b,['from','to']));
-    saveLocal();
+    await sheetsPost({ action, sheet: sheetKey, row, id });
+    // After write, reload from Sheets to confirm actual state
+    const fresh = await sheetsGet();
+    applyToDB(fresh);
     setSyncStatus('ok');
+    updateStats();
+    // Refresh current view
+    refreshCurrentView();
+  } catch(e) {
+    setSyncStatus('error');
+    toast('⚠ Sheets write failed — retrying…', 'warn');
+    // Retry once after 2 seconds
+    setTimeout(async () => {
+      try {
+        await sheetsPost({ action, sheet: sheetKey, row, id });
+        const fresh = await sheetsGet();
+        applyToDB(fresh);
+        setSyncStatus('ok');
+        toast('✅ Saved to Sheets', 'ok');
+        refreshCurrentView();
+      } catch(e2) {
+        setSyncStatus('error');
+        toast('❌ Could not save to Sheets. Check connection.', 'err');
+        autoSave(); // last resort — save locally
+      }
+    }, 2000);
+  }
+}
+
+function applyToDB(fresh) {
+  DB.employees        = fresh.employees;
+  DB.roster           = fresh.roster;
+  DB.leaveRequests    = fresh.leaveRequests;
+  DB.lockedRanges     = fresh.lockedRanges;
+  DB.staffLeaveBlocks = fresh.staffLeaveBlocks;
+  cacheToLocal(fresh);
+}
+
+function refreshCurrentView() {
+  const active = document.querySelector('.view.active')?.id?.replace('view-','');
+  const map = {dashboard:renderDash,roster:renderRoster,calendar:renderCalendar,leaves:renderLeaves,lockdays:renderLockDays,staff:renderStaff};
+  if (active && map[active]) map[active]();
+  updateStats();
+}
+
+// ── Auto-save (localStorage only — used when no Sheets) ──
+function autoSave() {
+  cacheToLocal({
+    employees: DB.employees, roster: DB.roster,
+    leaveRequests: DB.leaveRequests, lockedRanges: DB.lockedRanges,
+    staffLeaveBlocks: DB.staffLeaveBlocks||[]
+  });
+  persistShiftConfig();
+  setSyncStatus(GAS_URL ? 'error' : 'local');
+}
+
+// ── After-mutation hooks — all route through sheetsWrite ──
+function afterAddEmployee(e)     { sheetsWrite('append', 'employees',     e,    null); }
+function afterUpdateEmployee(e)  { sheetsWrite('update', 'employees',     e,    e.id); }
+function afterDeleteEmployee(id) { sheetsWrite('delete', 'employees',     null, id);   }
+function afterAddRoster(r)       { sheetsWrite('append', 'roster',        r,    null); }
+function afterUpdateRoster(r)    { sheetsWrite('update', 'roster',        r,    r.id); }
+function afterDeleteRoster(id)   { sheetsWrite('delete', 'roster',        null, id);   }
+function afterAddLeave(lr)       { sheetsWrite('append', 'leaveRequests', lr,   null); }
+function afterUpdateLeave(lr)    { sheetsWrite('update', 'leaveRequests', lr,   lr.id);}
+function afterAddLock(lk)        { sheetsWrite('append', 'lockedRanges',  lk,   null); }
+function afterDeleteLock(id)     { sheetsWrite('delete', 'lockedRanges',  null, id);   }
+function afterAddStaffBlock(b)   { sheetsWrite('append', 'staffBlocks',   b,    null); }
+function afterDeleteStaffBlock(id){ sheetsWrite('delete','staffBlocks',   null, id);   }
+
+// ── Full sync (push all local data to Sheets) ──
+async function fullSync() {
+  if (!GAS_URL) { toast('Configure Google Sheets URL in Settings first','warn'); return; }
+  setSyncStatus('syncing');
+  showLoader('Syncing all data to Google Sheets…');
+  try {
+    const ops = [
+      {key:'employees',     data:DB.employees},
+      {key:'roster',        data:DB.roster},
+      {key:'leaveRequests', data:DB.leaveRequests},
+      {key:'lockedRanges',  data:DB.lockedRanges},
+      {key:'staffBlocks',   data:DB.staffLeaveBlocks||[]},
+    ];
+    for (const op of ops) {
+      await sheetsPost({action:'bulkReplace', sheet:op.key, rows:op.data});
+    }
+    const fresh = await sheetsGet();
+    applyToDB(fresh);
+    setSyncStatus('ok');
+    hideLoader();
     populateDropdowns(); updateStats(); renderDash();
-    // If on leaves page, re-render
-    if(document.getElementById('view-leaves').classList.contains('active')) renderLeaves();
-    toast('✅ All data loaded from Google Sheets', 'ok');
+    toast('✅ Full sync complete','ok');
   } catch(e) {
     hideLoader();
     setSyncStatus('error');
-    toast('Load failed: ' + e.message, 'err');
+    toast('❌ Sync failed: ' + e.message,'err');
   }
 }
 
-function fixDateField(obj, fields) {
-  // Normalize any date field to YYYY-MM-DD
-  fields.forEach(f => {
-    if (obj[f] && !/^\d{4}-\d{2}-\d{2}$/.test(obj[f])) {
-      try {
-        const d = new Date(obj[f]);
-        if (!isNaN(d.getTime())) {
-          const y = d.getFullYear();
-          const m = String(d.getMonth()+1).padStart(2,'0');
-          const day = String(d.getDate()).padStart(2,'0');
-          obj[f] = y + '-' + m + '-' + day;
-        }
-      } catch(e) {}
-    }
-  });
-  return obj;
-}
-
-async function loadFromSheets() {
-  if (!GAS_URL) return false;
+// ── Load all from Sheets ──
+async function loadAllFresh() {
+  if (!GAS_URL) { toast('No Sheets URL configured','warn'); return; }
   setSyncStatus('syncing');
-  const data = await apiGet();
-  if (!data || !data.employees?.length) { setSyncStatus('error'); return false; }
-  // Fix any bad date formats coming from Sheets
-  DB.employees     = (data.employees||[]).map(e=>fixDateField(e,['joinDate']));
-  DB.roster        = (data.roster||[]).map(r=>fixDateField(r,['date']));
-  DB.leaveRequests = (data.leaveRequests||[]).map(lr=>fixDateField(lr,['leaveDate','submittedOn']));
-  DB.lockedRanges  = (data.lockedRanges||[]).map(lk=>fixDateField(lk,['from','to','addedOn']));
-  DB.staffLeaveBlocks = (data.staffBlocks||[]).map(b=>fixDateField(b,['from','to']));
-  setSyncStatus('ok');
-  return true;
-}
-
-async function fullSync() {
-  if (!GAS_URL) { toast('Configure Google Sheets URL in Settings first', 'warn'); return; }
-  setSyncStatus('syncing');
-  showLoader('Syncing to Google Sheets…');
-  const ops = [
-    { key:'employees',     data:DB.employees },
-    { key:'roster',        data:DB.roster },
-    { key:'leaveRequests', data:DB.leaveRequests },
-    { key:'lockedRanges',  data:DB.lockedRanges },
-    { key:'staffBlocks',   data:DB.staffLeaveBlocks||[] },
-  ];
-  let ok = true;
-  for (const op of ops) {
-    if (!await apiPost({ action:'bulkReplace', sheet:op.key, rows:op.data })) { ok=false; break; }
+  showLoader('Loading from Google Sheets…');
+  try {
+    const fresh = await sheetsGet();
+    applyToDB(fresh);
+    setSyncStatus('ok');
+    hideLoader();
+    populateDropdowns(); updateStats(); renderDash();
+    toast('✅ Loaded from Google Sheets','ok');
+  } catch(e) {
+    hideLoader();
+    setSyncStatus('error');
+    toast('❌ Load failed: ' + e.message,'err');
   }
-  hideLoader();
-  setSyncStatus(ok ? 'ok' : 'error');
-  toast(ok ? '✅ Synced to Google Sheets' : '❌ Sync failed', ok ? 'ok' : 'err');
 }
 
+async function loadFromSheets() { return loadAllFresh(); }
+
+// ── Init sheets structure ──
 async function initSheets() {
-  if (!GAS_URL) { toast('Enter URL first', 'warn'); return; }
+  if (!GAS_URL) { toast('Enter URL first','warn'); return; }
   showLoader('Creating sheets…');
-  const ok = await apiPost({ action:'initSheets', sheet:'employees' });
-  hideLoader();
-  toast(ok ? '✅ Sheets created — now click Full Sync' : '❌ Failed', ok?'ok':'err');
+  try {
+    await sheetsPost({action:'initSheets', sheet:'employees'});
+    hideLoader();
+    toast('✅ Sheets created — now click Full Sync','ok');
+  } catch(e) {
+    hideLoader();
+    toast('❌ Failed: ' + e.message,'err');
+  }
 }
 
-// Stub — push individual records to sheets (best effort, localStorage is primary)
-function pushRecord(k,a,r,id) { if(GAS_URL) apiPost({action:a,sheet:k,row:r,id}); }
-function afterAddEmployee(e)    { pushRecord('employees','append',e); }
-function afterUpdateEmployee(e) { pushRecord('employees','update',e,e.id); }
-function afterDeleteEmployee(id){ pushRecord('employees','delete',null,id); }
-function afterAddRoster(r)      { pushRecord('roster','append',r); }
-function afterUpdateRoster(r)   { pushRecord('roster','update',r,r.id); }
-function afterDeleteRoster(id)  { pushRecord('roster','delete',null,id); }
-function afterAddLeave(lr)      { pushRecord('leaveRequests','append',lr); }
-function afterUpdateLeave(lr)   { pushRecord('leaveRequests','update',lr,lr.id); }
-function afterAddLock(lk)       { pushRecord('lockedRanges','append',lk); }
-function afterDeleteLock(id)    { pushRecord('lockedRanges','delete',null,id); }
-function afterAddStaffBlock(b)  { pushRecord('staffBlocks','append',b); }
-function afterDeleteStaffBlock(id){ pushRecord('staffBlocks','delete',null,id); }
+// ── Fix bad dates in Sheets ──
+async function fixSheetsData() {
+  if (!GAS_URL) { toast('Connect Sheets first','warn'); return; }
+  showLoader('Fixing date formats…');
+  let fixed = 0;
+  for (const s of ['leaveRequests','roster','lockedRanges','staffBlocks','employees']) {
+    try { await sheetsPost({action:'fixDates', sheet:s}); fixed++; } catch(e) {}
+  }
+  hideLoader();
+  toast('Fixed ' + fixed + ' sheets — reloading…','ok');
+  await loadAllFresh();
+}
 
-// Loader overlay
+// ── Loader helpers ──
 function showLoader(msg) {
   document.getElementById('loaderMsg').textContent = msg||'Please wait…';
   document.getElementById('loaderOverlay').style.display='flex';
 }
 function hideLoader() { document.getElementById('loaderOverlay').style.display='none'; }
 
-// Save GAS URL
-async function fixSheetsData() {
-  // Fix corrupted date values in all sheets
-  if (!GAS_URL) { toast('Connect Sheets first', 'warn'); return; }
-  showLoader('Fixing date formats in Google Sheets…');
-  const sheets = ['leaveRequests','roster','lockedRanges','staffBlocks','employees'];
-  let fixed = 0;
-  for (const s of sheets) {
-    try {
-      const r = await fetch(GAS_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'fixDates', sheet: s }),
-        headers: { 'Content-Type': 'text/plain' }
-      });
-      const j = await r.json();
-      if (j.ok) fixed++;
-    } catch(e) {}
-  }
-  hideLoader();
-  toast('Fixed dates in ' + fixed + ' sheets. Now click ③ Load from Sheets.', 'ok');
-}
-
-async function testConnection() {
-  const url = document.getElementById('gasUrlInput').value.trim();
-  const out = document.getElementById('connTestResult');
-  out.style.display = 'block';
-  out.style.color = 'var(--txt2)';
-
-  if (!url) { out.textContent = '❌ No URL entered'; return; }
-  if (!url.startsWith('https://script.google.com')) {
-    out.textContent = '❌ URL must start with https://script.google.com'; return;
-  }
-
-  out.textContent = '⏳ Testing connection…';
-  try {
-    const testUrl = url + '?t=' + Date.now();
-    out.textContent = '⏳ Sending GET request to:\n' + testUrl;
-    const r = await fetch(testUrl);
-    out.textContent += '\n✅ HTTP status: ' + r.status;
-    const text = await r.text();
-    out.textContent += '\n📄 Raw response (first 200 chars):\n' + text.slice(0, 200);
-    try {
-      const j = JSON.parse(text);
-      if (j.ok) {
-        out.textContent += '\n\n✅ SUCCESS! Connected to Google Sheets.';
-        out.textContent += '\nEmployees found: ' + (j.data?.employees?.length || 0);
-        out.style.color = 'var(--green)';
-      } else {
-        out.textContent += '\n\n⚠ Response ok=false. Error: ' + j.error;
-        out.style.color = 'var(--orange)';
-      }
-    } catch(pe) {
-      out.textContent += '\n\n❌ Response is not valid JSON.';
-      out.textContent += '\nThis usually means the script is NOT deployed as a Web App,';
-      out.textContent += '\nor "Who has access" is not set to "Anyone".';
-      out.style.color = 'var(--red)';
-    }
-  } catch(e) {
-    out.textContent = '❌ Network error: ' + e.message;
-    out.textContent += '\n\nPossible causes:';
-    out.textContent += '\n• Script not deployed yet';
-    out.textContent += '\n• URL copied incorrectly';
-    out.textContent += '\n• No internet connection';
-    out.style.color = 'var(--red)';
-  }
-}
-
+// ── Save GAS URL ──
 function saveGasUrl() {
   const url = document.getElementById('gasUrlInput').value.trim();
-  if (!url.startsWith('https://script.google.com')) {
-    toast('Invalid URL','err'); return;
-  }
+  if (!url.startsWith('https://script.google.com')) { toast('Invalid URL','err'); return; }
   localStorage.setItem('gasUrl', url);
   location.reload();
 }
 
+// ── Test connection ──
+async function testConnection() {
+  const url = document.getElementById('gasUrlInput').value.trim();
+  const out = document.getElementById('connTestResult');
+  out.style.display='block'; out.style.color='var(--txt2)';
+  if (!url) { out.textContent='❌ No URL entered'; return; }
+  out.textContent='⏳ Testing…';
+  try {
+    const r = await fetch(url + '?t=' + Date.now());
+    const text = await r.text();
+    const j = JSON.parse(text);
+    if (j.ok) {
+      out.textContent='✅ Connected! Employees: ' + (j.data?.employees?.length||0) + ', Roster: ' + (j.data?.roster?.length||0);
+      out.style.color='var(--green)';
+    } else {
+      out.textContent='⚠ ' + j.error;
+      out.style.color='var(--orange)';
+    }
+  } catch(e) {
+    out.textContent='❌ ' + e.message + '\nMake sure "Who has access" = Anyone in Apps Script deploy settings.';
+    out.style.color='var(--red)';
+  }
+}
+
+// ── Background sync every 15 seconds ──
+// Only reads — never writes. Sheets is authoritative.
+let bgSyncRunning = false;
+async function backgroundSync() {
+  if (bgSyncRunning || !GAS_URL) return;
+  bgSyncRunning = true;
+  try {
+    const fresh = await sheetsGet();
+    const oldPending = DB.leaveRequests.filter(x=>x.status==='pending').length;
+    applyToDB(fresh);
+    const newPending = DB.leaveRequests.filter(x=>x.status==='pending').length;
+
+    // Update last-synced time
+    const ts = document.getElementById('lastSyncTime');
+    if (ts) ts.textContent = new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+
+    setSyncStatus('ok');
+    updateStats();
+
+    // Notify new leaves
+    if (newPending > oldPending) {
+      toast('🔔 ' + (newPending-oldPending) + ' new leave request(s)!','ok');
+    }
+
+    // Refresh current view silently
+    refreshCurrentView();
+  } catch(e) {
+    setSyncStatus('error');
+  } finally {
+    bgSyncRunning = false;
+  }
+}
+
 // ════════════════════════════════════════════════════════════
-//  INIT — runs on every page load
+//  INIT
 // ════════════════════════════════════════════════════════════
 async function init() {
-  // Step 1: Always load from localStorage FIRST (instant, no network needed)
-  const hasLocal = loadLocal();
-
-  // Step 2: If no local data AND Sheets configured, try loading from Sheets
-  if (!hasLocal && GAS_URL) {
-    showLoader('Loading data…');
-    const sheetsOk = await loadFromSheets();
-    hideLoader();
-    if (sheetsOk) {
-      saveLocal(); // cache sheets data to localStorage
-    } else {
-      // No local, no sheets — start blank (no seed data)
-    }
-  } else if (hasLocal && GAS_URL) {
-    // Have local data, optionally refresh from Sheets in background
-    setSyncStatus('local');
-  } else if (!hasLocal && !GAS_URL) {
-    // Truly first run with no Sheets — stay blank, don't seed fake data
-    setSyncStatus('offline');
+  // 1. Show cached data instantly (if less than 10 mins old)
+  const cached = loadFromCache();
+  if (cached) {
+    applyToDB(cached);
+    populateDropdowns(); updateStats(); renderDash();
+    setSyncStatus(GAS_URL ? 'syncing' : 'local');
   }
 
-  populateDropdowns();
-  updateStats();
-  renderDash();
-
-  // ── Smart auto-sync when Sheets connected ──
+  // 2. If Sheets connected, always load fresh data
   if (GAS_URL) {
-    let lastSyncTime = Date.now();
-    let syncInProgress = false;
-
-    async function backgroundSync() {
-      if (syncInProgress) return;
-      if (!GAS_URL) return;
-      syncInProgress = true;
-      try {
-        const r = await fetch(GAS_URL + '?t=' + Date.now());
-        const j = await r.json();
-        if (!j.ok || !j.data) return;
-        const d = j.data;
-
-        // Check for new pending leaves
-        const oldPending = DB.leaveRequests.filter(x=>x.status==='pending').length;
-
-        // Update all data
-        if (d.employees?.length)  DB.employees   = d.employees.map(e=>fixDateField(e,['joinDate']));
-        if (d.roster?.length)     DB.roster      = d.roster.map(r=>fixDateField(r,['date']));
-        if (d.leaveRequests)      DB.leaveRequests = d.leaveRequests.map(lr=>fixDateField(lr,['leaveDate','submittedOn']));
-        if (d.lockedRanges)       DB.lockedRanges  = d.lockedRanges.map(lk=>fixDateField(lk,['from','to','addedOn']));
-        if (d.staffBlocks)        DB.staffLeaveBlocks = d.staffBlocks.map(b=>fixDateField(b,['from','to']));
-
-        saveLocal();
-        lastSyncTime = Date.now();
-
-        // Update last-synced timestamp in header
-        const ts = document.getElementById('lastSyncTime');
-        if (ts) ts.textContent = 'Updated ' + new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-
-        // Notify if new leaves arrived
-        const newPending = DB.leaveRequests.filter(x=>x.status==='pending').length;
-        if (newPending > oldPending) {
-          const diff = newPending - oldPending;
-          toast('🔔 ' + diff + ' new leave request' + (diff>1?'s':'') + ' received!', 'ok');
-          updateStats();
-          if (document.getElementById('view-leaves').classList.contains('active')) renderLeaves();
-          if (document.getElementById('view-dashboard').classList.contains('active')) renderDash();
-        } else {
-          // Silently update stats and current view
-          updateStats();
-          const activeView = document.querySelector('.view.active')?.id?.replace('view-','');
-          if (activeView === 'dashboard') renderDash();
-          else if (activeView === 'roster') renderRoster();
-        }
-
-        setSyncStatus('ok');
-      } catch(e) {
-        setSyncStatus('error');
-      } finally {
-        syncInProgress = false;
-      }
+    try {
+      const fresh = await sheetsGet();
+      applyToDB(fresh);
+      setSyncStatus('ok');
+      populateDropdowns(); updateStats(); renderDash();
+    } catch(e) {
+      setSyncStatus('error');
+      if (!cached) { populateDropdowns(); updateStats(); renderDash(); }
+      toast('Could not reach Google Sheets — showing cached data','warn');
     }
 
-    // Poll every 15 seconds — safe within Google's quota even with 20 users
-    // 20 users × 4 polls/min × 60 min × 8 hours = 38,400 requests/day — well within 20,000 per user
+    // 3. Start background sync every 15 seconds
     setInterval(backgroundSync, 15000);
 
-    // Also sync immediately when tab becomes visible again (user switches back)
+    // 4. Sync when tab becomes visible
     document.addEventListener('visibilitychange', () => {
-      if (!document.hidden && Date.now() - lastSyncTime > 10000) {
-        backgroundSync();
-      }
+      if (!document.hidden) backgroundSync();
     });
+  } else {
+    if (!cached) { populateDropdowns(); updateStats(); renderDash(); }
+    setSyncStatus('local');
   }
 }
 init();
@@ -2041,30 +2030,6 @@ function clearAllLeaves(){if(!confirm('Delete ALL leave requests?'))return;DB.le
 function clearAllLocks(){if(!confirm('Remove ALL date locks?'))return;DB.lockedRanges=[];updateStats();toast('All locks removed','warn');}
 
 // ═══ LOCAL STORAGE PERSISTENCE ═══
-
-
-// ═══ INIT ═══
-async function init() {
-  // 1. Try Google Sheets first
-  const sheetsLoaded = await loadFromSheets();
-  if (sheetsLoaded) {
-    saveLocal(); // cache to localStorage as backup
-    return;
-  }
-  // 2. Fall back to localStorage (your saved data)
-  const localLoaded = loadLocal();
-  if (localLoaded) {
-    setSyncStatus(GAS_URL ? 'error' : 'local');
-    toast('Loaded from local storage', '');
-  } else {
-    // 3. First ever load — use seed demo data
-    seed();
-    saveLocal(); // save seed so next load uses localStorage
-    setSyncStatus('offline');
-  }
-  populateDropdowns(); updateStats(); renderDash();
-}
-init();
 </script>
 <!-- Loader Overlay -->
 <div id="loaderOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;align-items:center;justify-content:center;flex-direction:column;gap:16px">
