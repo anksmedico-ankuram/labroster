@@ -771,7 +771,7 @@ function saveLocal() {
 }
 
 // Call this after every data mutation
-function autoSave() { saveLocal(); }
+function autoSave() { saveLocal(); persistShiftConfig(); }
 
 // ── LOAD from localStorage ──
 function loadLocal() {
@@ -1815,7 +1815,35 @@ function removeStaffSettings(id){
 
 // -- Shift Config --
 const DEFAULT_SHIFTS={A:{label:'Shift A',start:'07:00',end:'16:00'},B:{label:'Shift B',start:'14:00',end:'23:00'},C:{label:'Shift C',start:'22:00',end:'07:00'}};
-let shiftConfig=JSON.parse(JSON.stringify(DEFAULT_SHIFTS));
+
+// Load saved shift config from localStorage, fall back to defaults
+function loadShiftConfig(){
+  try{
+    const raw=localStorage.getItem('ankuram_shifts');
+    if(raw){
+      const saved=JSON.parse(raw);
+      // Validate it has all three shifts
+      if(saved.A&&saved.B&&saved.C) return saved;
+    }
+  }catch(e){}
+  return JSON.parse(JSON.stringify(DEFAULT_SHIFTS));
+}
+
+function persistShiftConfig(){
+  try{ localStorage.setItem('ankuram_shifts', JSON.stringify(shiftConfig)); }
+  catch(e){}
+}
+
+let shiftConfig = loadShiftConfig();
+
+// Apply saved shift config to the SHIFTS display object on startup
+function applyShiftConfig(){
+  ['A','B','C'].forEach(s=>{
+    const c=shiftConfig[s];
+    SHIFTS[s]={label:c.label, time:`${c.start}–${c.end}`};
+  });
+}
+applyShiftConfig();
 
 function calcHours(start,end){
   const [sh,sm]=start.split(':').map(Number);
@@ -1847,23 +1875,34 @@ function updateHoursBadge(s){
 }
 
 function saveShiftConfig(){
+  let valid=true;
   ['A','B','C'].forEach(s=>{
     const start=document.getElementById(`sc-start-${s}`).value;
     const end=document.getElementById(`sc-end-${s}`).value;
     const label=document.getElementById(`sc-label-${s}`).value||`Shift ${s}`;
-    if(!start||!end){toast(`Enter valid times for Shift ${s}`,'err');return;}
+    if(!start||!end){toast(`Enter valid times for Shift ${s}`,'err');valid=false;return;}
     shiftConfig[s]={label,start,end};
     SHIFTS[s]={label,time:`${start}–${end}`};
   });
-  toast('Shift settings saved','ok');
+  if(!valid)return;
+  persistShiftConfig(); // Save to localStorage so it survives page reload
+  toast('Shift settings saved — will persist across sessions','ok');
   renderDash();
+  // Also update the shift legend in dashboard
+  const sleg=document.querySelector('.sleg');
+  if(sleg){
+    sleg.innerHTML=
+      `<div class="sl-item"><div class="sl-dot" style="background:#4f8ef7"></div><b>${SHIFTS.A.label}</b><span class="slt">${SHIFTS.A.time}</span></div>`+
+      `<div class="sl-item"><div class="sl-dot" style="background:var(--green)"></div><b>${SHIFTS.B.label}</b><span class="slt">${SHIFTS.B.time}</span></div>`+
+      `<div class="sl-item"><div class="sl-dot" style="background:var(--purple)"></div><b>${SHIFTS.C.label}</b><span class="slt">${SHIFTS.C.time}</span></div>`+
+      `<div class="sl-item" style="margin-left:auto"><span style="color:var(--txt2)">Each shift:</span> <b>9 hours</b></div>`;
+  }
 }
 
 function resetShiftConfig(){
   shiftConfig=JSON.parse(JSON.stringify(DEFAULT_SHIFTS));
-  SHIFTS.A={label:'Shift A',time:'07:00–16:00'};
-  SHIFTS.B={label:'Shift B',time:'14:00–23:00'};
-  SHIFTS.C={label:'Shift C',time:'22:00–07:00 (+1)'};
+  applyShiftConfig();
+  persistShiftConfig();
   renderShiftConfig();
   toast('Reset to defaults');
 }
