@@ -797,7 +797,8 @@ function loadFromCache() {
     if (!raw) return null;
     const d = JSON.parse(raw);
     // Reject cache older than 10 minutes — force fresh Sheets load
-    if (Date.now() - (d.ts||0) > 600000) { localStorage.removeItem(LS_KEY); return null; }
+    // Cache never expires — always show last known good data
+    // if (Date.now() - (d.ts||0) > 600000) { localStorage.removeItem(LS_KEY); return null; }
     if (!d.employees?.length) return null;
     return {
       employees:        d.employees        || [],
@@ -832,6 +833,11 @@ async function sheetsPost(payload) {
 // This is the ONLY way data gets written — no optimistic local updates
 async function sheetsWrite(action, sheetKey, row, id) {
   if (!GAS_URL) { autoSave(); return; } // no Sheets — just save locally
+  // Safety guard — don't write if employee list is suspiciously empty during init
+  if (sheetKey === 'employees' && action === 'bulkReplace' && (!row || row.length === 0)) {
+    console.warn('Blocked empty employee bulkReplace');
+    return;
+  }
   setSyncStatus('syncing');
   try {
     await sheetsPost({ action, sheet: sheetKey, row, id });
@@ -864,12 +870,24 @@ async function sheetsWrite(action, sheetKey, row, id) {
 }
 
 function applyToDB(fresh) {
-  DB.employees        = fresh.employees;
-  DB.roster           = fresh.roster;
-  DB.leaveRequests    = fresh.leaveRequests;
-  DB.lockedRanges     = fresh.lockedRanges;
-  DB.staffLeaveBlocks = fresh.staffLeaveBlocks;
-  cacheToLocal(fresh);
+  // Never overwrite existing employee data with empty array
+  if (fresh.employees && fresh.employees.length > 0) {
+    DB.employees = fresh.employees;
+  } else if (fresh.employees && fresh.employees.length === 0 && DB.employees.length > 0) {
+    console.warn('Blocked overwrite of employees with empty array from Sheets');
+    // Don't update employees — Sheets might have an error
+  } else {
+    DB.employees = fresh.employees || [];
+  }
+  DB.roster           = fresh.roster           || [];
+  DB.leaveRequests    = fresh.leaveRequests     || [];
+  DB.lockedRanges     = fresh.lockedRanges      || [];
+  DB.staffLeaveBlocks = fresh.staffLeaveBlocks  || [];
+  cacheToLocal({
+    employees: DB.employees, roster: DB.roster,
+    leaveRequests: DB.leaveRequests, lockedRanges: DB.lockedRanges,
+    staffLeaveBlocks: DB.staffLeaveBlocks
+  });
 }
 
 function refreshCurrentView() {
@@ -907,6 +925,11 @@ function afterDeleteStaffBlock(id){ sheetsWrite('delete','staffBlocks',   null, 
 // ── Full sync (push all local data to Sheets) ──
 async function fullSync() {
   if (!GAS_URL) { toast('Configure Google Sheets URL in Settings first','warn'); return; }
+  // Safety guard — never push empty employee list
+  if (!DB.employees || DB.employees.length === 0) {
+    toast('⚠ No staff data to sync — load from Sheets first','warn');
+    return;
+  }
   setSyncStatus('syncing');
   showLoader('Syncing all data to Google Sheets…');
   try {
@@ -1090,9 +1113,6 @@ async function init() {
     setSyncStatus('local');
   }
 }
-init();
-
-
 // ═══ SHARED DATA STORE ═══
 // In production this would be an API / Google Sheets
 const DB = {
@@ -2033,6 +2053,9 @@ function clearAllLeaves(){if(!confirm('Delete ALL leave requests?'))return;DB.le
 function clearAllLocks(){if(!confirm('Remove ALL date locks?'))return;DB.lockedRanges=[];updateStats();toast('All locks removed','warn');}
 
 // ═══ LOCAL STORAGE PERSISTENCE ═══
+
+// ── Start the app after all declarations ──
+init();
 </script>
 <!-- Loader Overlay -->
 <div id="loaderOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;align-items:center;justify-content:center;flex-direction:column;gap:16px">
