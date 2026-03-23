@@ -1573,9 +1573,12 @@ function renderStaff(){
 
 function resetPin(id){
   const e=getEmp(id); if(!e)return;
-  const np=prompt(`New 4-digit PIN for ${e.name}:`)?.trim();
-  if(!np||np.length!==4||isNaN(np)){toast('Invalid PIN','err');return;}
-  e.pin=np; renderStaff(); toast('PIN updated','ok');
+  const np=prompt(`New 4-digit PIN for ${e.name} (4 digits):`)?.trim();
+  if(!np||np.length!==4||isNaN(np)){toast('PIN must be exactly 4 digits (e.g. 1234)','err');return;}
+  e.pin=String(np); // always string
+  afterUpdateEmployee(e);
+  renderStaff();
+  toast('PIN updated for '+e.name,'ok');
 }
 
 function removeStaff(id){
@@ -1767,12 +1770,12 @@ function saveEditStaff(){
   const id=document.getElementById('editStaffMod').dataset.editId;
   const e=getEmp(id); if(!e)return;
   const newPin=document.getElementById('es-pin').value.trim();
-  if(newPin.length!==4||isNaN(newPin)){toast('PIN must be 4 digits','err');return;}
+  if(newPin.length!==4||isNaN(newPin)){toast('PIN must be exactly 4 digits','err');return;}
   e.name=document.getElementById('es-name').value.trim();
   e.dept=document.getElementById('es-dept').value;
   e.role=document.getElementById('es-role').value;
   e.contact=document.getElementById('es-contact').value;
-  e.pin=newPin;
+  e.pin=String(newPin); // always string
   e.preferredShift=document.getElementById('es-pshift').value;
   e.joinDate=document.getElementById('es-join').value;
   afterUpdateEmployee(e);
