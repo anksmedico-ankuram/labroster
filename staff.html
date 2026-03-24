@@ -107,6 +107,7 @@ header{background:var(--bg2);border-bottom:1px solid var(--bdr);display:flex;ali
     <div class="login-logo">Lab<em>Roster</em></div>
     <div class="login-labname">Ankuram Labs</div>
     <div class="login-sub">Staff Portal — Enter your PIN</div>
+    <div id="diagBox" style="background:var(--bg3);border:1px solid var(--bdr);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-family:'DM Mono',monospace;font-size:10px;color:var(--txt2);text-align:left;line-height:1.8;display:none"></div>
     <div class="gas-setup" id="gasSetupBanner">
       <b>⚠ Not connected to lab server</b>
       <p>Ask your admin for the Google Sheets URL and paste it here:</p>
@@ -115,7 +116,7 @@ header{background:var(--bg2);border-bottom:1px solid var(--bdr);display:flex;ali
     </div>
     <div class="login-label">Your 4-digit PIN</div>
     <input class="login-input" type="password" id="loginPin" maxlength="4" placeholder="••••" inputmode="numeric" autofocus>
-    <button class="login-btn" onclick="doLogin()">Sign In</button>
+    <button class="login-btn" id="loginBtnEl" onclick="doLogin()">Sign In</button>
     <div class="login-err" id="loginErr">Incorrect PIN. Please try again.</div>
   </div>
 </div>
@@ -238,9 +239,24 @@ function doLogin(){
   const pin = document.getElementById('loginPin').value.trim();
   const err = document.getElementById('loginErr');
   err.style.display='none';
+  if(!pin){ return; }
   if(pin==='0000'){ window.location.href='admin.html'; return; }
+
+  // If no employees loaded yet — data still loading
+  if(DB.employees.length===0){
+    err.textContent='⏳ Still loading staff data… please wait a moment and try again.';
+    err.style.display='block';
+    // Auto-retry after 2 seconds
+    setTimeout(()=>{ err.style.display='none'; }, 3000);
+    return;
+  }
+
   const emp = DB.employees.find(e=> String(e.pin).trim()===String(pin).trim());
-  if(!emp){ err.style.display='block'; return; }
+  if(!emp){
+    err.textContent='Incorrect PIN. Please try again. ('+DB.employees.length+' staff loaded)';
+    err.style.display='block';
+    return;
+  }
   currentUser=emp;
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('appShell').style.display='block';
@@ -456,12 +472,60 @@ function renderProfile(){
 
 // ── INIT ──
 (async()=>{
-  if(!GAS_URL){ const b=document.getElementById('gasSetupBanner'); if(b) b.style.display='block'; }
-  loadFromCache();
+  const diag = document.getElementById('diagBox');
+  const showDiag = (lines) => { if(diag){ diag.style.display='block'; diag.innerHTML=lines.join('<br>'); } };
+
+  if(!GAS_URL){
+    const b=document.getElementById('gasSetupBanner'); if(b) b.style.display='block';
+    showDiag(['❌ No server URL configured','Paste your Google Sheets URL above']);
+  }
+
+  const loginBtn = document.getElementById('loginBtnEl');
+  const setLoginStatus = (msg, ready) => {
+    if(loginBtn){ loginBtn.textContent = ready ? 'Sign In' : msg; loginBtn.disabled = !ready; }
+  };
+
+  const hasCached = loadFromCache();
+  showDiag([
+    '🔗 Server: '+(GAS_URL ? '✅ URL saved' : '❌ No URL'),
+    '💾 Cache: '+(hasCached ? '✅ '+DB.employees.length+' staff' : '❌ Empty'),
+    '⏳ Loading from server…'
+  ]);
+
+  if(!hasCached){ setLoginStatus('⏳ Loading staff data…', false); }
+
   if(GAS_URL){
     setSyncBadge('🔄');
-    try{ const fresh=await sheetsGet(); applyToDB(fresh); setSyncBadge('☁ Live'); }
-    catch(e){ setSyncBadge('⚠'); console.warn('Sheets load failed:',e.message); }
+    try{
+      const fresh=await sheetsGet();
+      applyToDB(fresh);
+      setSyncBadge('☁ Live');
+      setLoginStatus('Sign In', true);
+      showDiag([
+        '🔗 Server: ✅ Connected',
+        '👥 Staff loaded: '+DB.employees.length,
+        '✅ Ready — enter your PIN'
+      ]);
+    }
+    catch(e){
+      setSyncBadge('⚠ Offline');
+      console.warn('Sheets load failed:',e.message);
+      if(hasCached){
+        setLoginStatus('Sign In', true);
+        showDiag([
+          '🔗 Server: ⚠ Offline ('+e.message+')',
+          '💾 Using cached data: '+DB.employees.length+' staff',
+          '✅ Ready — enter your PIN'
+        ]);
+      } else {
+        setLoginStatus('⚠ Cannot reach server', false);
+        showDiag([
+          '🔗 Server: ❌ '+e.message,
+          '💾 No cached data',
+          '❌ Cannot login — check connection'
+        ]);
+      }
+    }
     setInterval(async()=>{
       try{
         const fresh=await sheetsGet(); applyToDB(fresh);
